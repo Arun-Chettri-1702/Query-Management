@@ -1,4 +1,5 @@
 import Question from "../models/question.model.js";
+import Tag from "../models/tag.model.js";
 import asyncHandler from "express-async-handler";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
@@ -6,25 +7,42 @@ import mongoose from "mongoose";
 const createQuestion = asyncHandler(async (req, res) => {
     const { title, body, tags } = req.body;
 
-    if ([title, body].some((eachField) => eachField?.trim() === "")) {
+    if ([title, body].some((f) => f?.trim() === "")) {
         throw new Error("Required fields cannot be empty");
     }
 
-    try {
-        const questionInstance = await Question.create({
-            title: title,
-            body: body,
-            askedBy: req.user._id,
-            tags: tags || [],
-        });
-
-        return res.status(200).json({
-            questionInstance,
-            message: "Question created successfully",
-        });
-    } catch (err) {
-        throw new Error("Question creation failed");
+    // Validate that each tag ID is valid (if provided)
+    if (tags && !tags.every((tagId) => mongoose.isValidObjectId(tagId))) {
+        throw new Error("One or more tag IDs are invalid");
     }
+
+    const tagIds = [];
+    for (const tagName of tags) {
+        // Normalize
+        const lowerName = tagName.toLowerCase().trim();
+
+        // Check if tag exists
+        let tag = await Tag.findOne({ name: lowerName });
+        if (!tag) {
+            // Create if it doesn’t
+            tag = await Tag.create({ name: lowerName });
+        }
+
+        // Push its ObjectId
+        tagIds.push(tag._id);
+    }
+
+    const question = await Question.create({
+        title: title.trim(),
+        body: body.trim(),
+        askedBy: req.user._id,
+        tags: tagIds || [],
+    });
+
+    return res.status(201).json({
+        question,
+        message: "Question created successfully",
+    });
 });
 
 const getUserQuestions = asyncHandler(async (req, res) => {
@@ -42,13 +60,22 @@ const getUserQuestions = asyncHandler(async (req, res) => {
 
     const userQuestion = await Question.aggregate([
         {
-            $match: { askedBy: new mongoose.Types.ObjectId(userId) },
+            $match: { askedBy: mongoose.ObjectId.createFromHexString(userId) },
+        },
+        {
+            $lookup: {
+                from: "tags", // Mongo collection name (lowercase plural)
+                localField: "tags",
+                foreignField: "_id",
+                as: "tags",
+            },
         },
         {
             $project: {
                 _id: 1,
                 title: 1,
                 body: 1,
+                tags: { name: 1, _id: 1 },
                 createdAt: 1,
                 updatedAt: 1,
             },
@@ -76,12 +103,11 @@ const getQuestionById = asyncHandler(async (req, res) => {
         throw new Error("Invalid question id");
     }
 
-
     try {
-        const question = await Question.findById(questionId).populate(
-            "askedBy",
-            "name"
-        );
+        const question = await Question.findById(questionId)
+            .populate("askedBy", "name email")
+            .populate("tags", "name description");
+
         if (!question) {
             throw new Error("Question with this id not found");
         }
@@ -127,18 +153,19 @@ const updateQuestion = asyncHandler(async (req, res) => {
     if (body?.trim()) {
         updateFields.body = body?.trim();
     }
-
     if (tags?.length > 0) {
-        
-        const newTags = tags?.filter((tag) => !question.tags.includes(tag));
-        if (newTags.length > 0) {
-            updateFields.tags = [...question.tags, ...newTags];
+        if (!tags.every((tagId) => mongoose.isValidObjectId(tagId))) {
+            throw new Error("Invalid tag IDs in request");
         }
+
+        // Optional: append new tags without duplicates
+        const uniqueTags = Array.from(
+            new Set([...question.tags.map(String), ...tags.map(String)])
+        );
+        updateFields.tags = uniqueTags;
     }
 
     try {
-
-
         const updatedQuestion = await Question.findByIdAndUpdate(
             questionId,
             {

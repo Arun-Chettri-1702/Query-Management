@@ -3,16 +3,15 @@ import verifyJWT from "../middlewares/auth.middleware.js";
 import { check } from "express-validator";
 import { toggleVote } from "../controllers/answerVote.controller.js";
 
-const voteRouter = Router();
+// This router MUST have mergeParams to see :answerId from the parent
+const voteRouter = Router({ mergeParams: true });
 
-voteRouter.post(
-    "/vote/:answerId",
-    verifyJWT[
-        (check("voteType").isIn([-1, 1].withMessage("Wrong vote type")),
-        check("answerId").isMongoId().withMessage("Invalid answer id"))
-    ],
-    toggleVote
-);
+const voteValidation = [
+    check("voteType", "Vote type must be 1 or -1").isIn([1, -1]),
+];
 
+// The route is now just "/" because it's nested.
+// Middleware is chained correctly as separate arguments.
+voteRouter.route("/").post(verifyJWT, voteValidation, toggleVote);
 
-export {voteRouter}
+export { voteRouter };

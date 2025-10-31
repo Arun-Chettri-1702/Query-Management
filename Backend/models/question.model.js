@@ -9,10 +9,12 @@ const questionSchema = new mongoose.Schema(
             ref: "User",
             required: true,
         },
-        tags: {
-            type: [String],
-            required: false,
-        },
+        tags: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Tag", // This references your Tag model
+            },
+        ],
         // You can add other fields like status, tags, etc. here
     },
     {

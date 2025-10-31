@@ -15,9 +15,9 @@ const createComment = asyncHandler(async (req, res) => {
         author_id,
     };
     if (questionId) {
-        commentData.questionId = questionId;
+        commentData.question_id = questionId;
     } else if (answerId) {
-        commentData.answerId = answerId;
+        commentData.answer_id = answerId;
     } else {
         res.status(500);
         throw new Error("Server routing error: No parent ID found.");
@@ -34,9 +34,10 @@ const getCommentsForParent = asyncHandler(async (req, res) => {
 
     let matchStage = {};
     if (questionId) {
-        matchStage.question_id = new mongoose.Types.ObjectId(questionId);
+        matchStage.question_id =
+            mongoose.ObjectId.createFromHexString(questionId);
     } else if (answerId) {
-        matchStage.answer_id = new mongoose.Types.ObjectId(answerId);
+        matchStage.answer_id = mongoose.Types.createFromHexString(answerId);
     } else {
         res.status(400);
         throw new Error("No parent ID provided.");
@@ -58,7 +59,7 @@ const getCommentsForParent = asyncHandler(async (req, res) => {
         {
             $project: {
                 _id: 1,
-                content: 1,
+                body: 1,
                 createdAt: 1,
                 updatedAt: 1,
                 "author._id": 1,
@@ -72,6 +73,84 @@ const getCommentsForParent = asyncHandler(async (req, res) => {
     return res.status(200).json({
         count: comments.length,
         comments,
+    });
+});
+
+const updateComment = asyncHandler(async (req, res) => {
+    // --- 1. Get Inputs ---
+    const { commentId } = req.params;
+    const { body } = req.body;
+
+    // --- 2. Validation ---
+    if (!mongoose.isValidObjectId(commentId)) {
+        res.status(400); // Bad Request
+        throw new Error("Invalid Comment ID format");
+    }
+
+    if (!body || body.trim() === "") {
+        res.status(400);
+        throw new Error("Comment body cannot be empty");
+    }
+
+    // --- 3. Find the Resource ---
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+        res.status(404); // Not Found
+        throw new Error("Comment not found");
+    }
+
+    // --- 4. Authorization ---
+    if (comment.author_id.toString() !== req.user._id.toString()) {
+        res.status(403); // Forbidden
+        throw new Error("User not authorized to update this comment");
+    }
+
+    // --- 5. Update and Save ---
+    comment.body = body.trim();
+    // CRITICAL FIX: Await the save operation to ensure it completes and to catch errors.
+    const updatedComment = await comment.save();
+
+    // --- 6. Send Response ---
+    return res.status(200).json({
+        comment: updatedComment,
+        message: "Comment has been updated successfully",
+    });
+});
+
+const deleteComment = asyncHandler(async (req, res) => {
+    // --- 1. Get Inputs & Validate ---
+    const { commentId } = req.params;
+
+    if (!mongoose.isValidObjectId(commentId)) {
+        res.status(400); // Bad Request
+        throw new Error("Invalid Comment ID format");
+    }
+
+    // --- 2. Find the Resource ---
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+        res.status(404); // Not Found
+        throw new Error("Comment not found");
+    }
+
+    // --- 3. Authorization ---
+    // A user can delete a comment if:
+    //  a) They are the author of the comment.
+    //  b) They are an admin or a moderator.
+    const isAuthor = comment.author_id.toString() === req.user._id.toString();
+
+    if (!isAuthor) {
+        res.status(403); // Forbidden
+        throw new Error("User not authorized to delete this comment");
+    }
+
+    // --- 4. Delete the Resource ---
+    // .remove() is a good choice as it triggers any 'pre remove' Mongoose middleware.
+    await Comment.findByIdAndDelete(commentId);
+
+    // --- 5. Send Response ---
+    return res.status(200).json({
+        message: "Comment has been deleted successfully",
     });
 });
 
