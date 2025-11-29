@@ -5,18 +5,10 @@ const tagSchema = new mongoose.Schema(
         name: {
             type: String,
             required: true,
-            unique: true, // Tag names must be unique
+            unique: true,
             lowercase: true,
             trim: true,
-        },
-        description: {
-            type: String,
-        },
-        createdBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
-            required: true,
-        },
+        }, // --- FIX: 'createdBy' and 'description' have been removed ---
     },
     { timestamps: true }
 );

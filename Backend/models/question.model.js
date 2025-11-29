@@ -12,13 +12,25 @@ const questionSchema = new mongoose.Schema(
         tags: [
             {
                 type: mongoose.Schema.Types.ObjectId,
-                ref: "Tag", // This references your Tag model
+                ref: "Tag",
             },
         ],
-        // You can add other fields like status, tags, etc. here
+        // --- FIX: ADDED THIS FIELD ---
+        voteCount: {
+            type: Number,
+            default: 0,
+        },
+
+        // --- FIX: ADDED THIS FIELD ---
+        answers: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Answer",
+            },
+        ],
     },
     {
-        timestamps: true, // This will automatically handle createdAt and updatedAt
+        timestamps: true,
     }
 );
 

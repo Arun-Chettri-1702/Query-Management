@@ -1,5 +1,5 @@
 import { Router } from "express";
-import verifyJWT from "../middlewares/auth.middleware.js";
+import {verifyJWT} from "../middlewares/auth.middleware.js";
 import {
     postAnswer,
     getAnswersForQuestion,
@@ -10,7 +10,7 @@ import {
 
 const answerRouter = Router();
 
-answerRouter.post("/postAnswer", verifyJWT, postAnswer);
+answerRouter.post("/postAnswer/:questionId", verifyJWT, postAnswer);
 answerRouter.get(
     "/getAnswersForQuestion/:questionId",
     verifyJWT,

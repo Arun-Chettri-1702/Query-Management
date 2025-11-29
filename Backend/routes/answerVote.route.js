@@ -1,5 +1,5 @@
 import { Router } from "express";
-import verifyJWT from "../middlewares/auth.middleware.js";
+import {verifyJWT} from "../middlewares/auth.middleware.js";
 import { check } from "express-validator";
 import { toggleVote } from "../controllers/answerVote.controller.js";
 

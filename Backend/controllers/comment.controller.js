@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Comment from "../models/comment.model.js";
 import asyncHandler from "express-async-handler";
+import User from "../models/user.model.js";
 
 const createComment = asyncHandler(async (req, res) => {
     const { body } = req.body;
@@ -24,9 +25,17 @@ const createComment = asyncHandler(async (req, res) => {
     }
 
     const comment = await Comment.create(commentData);
+    const author = await User.findById(comment.author_id).select(
+        "name email"
+    );
+
+    // Convert Mongoose doc to plain object
+    const responseComment = comment.toObject();
+    // Attach the author object
+    responseComment.author = author;
     return res
         .status(200)
-        .json({ message: "Commented successfully ", comment });
+        .json({ message: "Commented successfully ", comment:responseComment });
 });
 
 const getCommentsForParent = asyncHandler(async (req, res) => {
@@ -35,9 +44,9 @@ const getCommentsForParent = asyncHandler(async (req, res) => {
     let matchStage = {};
     if (questionId) {
         matchStage.question_id =
-            mongoose.ObjectId.createFromHexString(questionId);
+            new mongoose.Types.ObjectId(questionId);
     } else if (answerId) {
-        matchStage.answer_id = mongoose.Types.createFromHexString(answerId);
+        matchStage.answer_id = new mongoose.Types.ObjectId(answerId);
     } else {
         res.status(400);
         throw new Error("No parent ID provided.");
@@ -63,7 +72,7 @@ const getCommentsForParent = asyncHandler(async (req, res) => {
                 createdAt: 1,
                 updatedAt: 1,
                 "author._id": 1,
-                "author.username": 1,
+                "author.name": 1,
                 "author.email": 1,
             },
         },
@@ -110,11 +119,19 @@ const updateComment = asyncHandler(async (req, res) => {
     // CRITICAL FIX: Await the save operation to ensure it completes and to catch errors.
     const updatedComment = await comment.save();
 
-    // --- 6. Send Response ---
+    const author = await User.findById(updatedComment.author_id).select(
+        "name email"
+    );
+    const responseComment = updatedComment.toObject();
+    responseComment.author = author; // --- 6. Send Response ---
+    // --- END OF FIX ---
+
     return res.status(200).json({
-        comment: updatedComment,
+        comment: responseComment, // Send the populated comment
         message: "Comment has been updated successfully",
     });
+
+
 });
 
 const deleteComment = asyncHandler(async (req, res) => {
@@ -154,4 +171,4 @@ const deleteComment = asyncHandler(async (req, res) => {
     });
 });
 
-export { getCommentsForParent, createComment };
+export { getCommentsForParent, createComment, updateComment, deleteComment };

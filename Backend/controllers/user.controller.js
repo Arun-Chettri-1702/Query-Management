@@ -1,5 +1,4 @@
 import User from "../models/user.model.js";
-import mongoose from "mongoose";
 import asyncHandler from "express-async-handler";
 import dotenv from "dotenv";
 dotenv.config({
@@ -14,8 +13,8 @@ const generateAccessAndRefreshTokens = async (userId) => {
     }
 
     try {
-        const accessToken = user.generateAccessToken();
-        const refreshToken = user.generateRefreshToken();
+        const accessToken =  user.generateAccessToken();
+        const refreshToken =  user.generateRefreshToken();
         user.refreshToken = refreshToken;
         await user.save({ validationBeforeSave: false });
 
@@ -59,11 +58,33 @@ const registerUser = asyncHandler(async (req, res) => {
             throw new Error("User creation failed");
         }
 
+        const { accessToken, refreshToken } =
+            await generateAccessAndRefreshTokens(createdUser._id);
+
+        console.log("Tokens:", { accessToken, refreshToken });
+        console.log("vhjv", process.env.NODE_ENV === "production");
+        const options = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+        };
         return res
-            .status(201)
-            .json({ createdUser, message: "User registered successfully" });
+            .status(200)
+            .cookie("refreshToken", refreshToken, {
+                ...options,
+                maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            })
+            .cookie("accessToken", accessToken, {
+                ...options,
+                maxAge: 15 * 60 * 1000, // 15 minutes
+            })
+            .json({
+                user: createdUser,
+                message: "User registered successfully",
+            });
     } catch (error) {
-        throw new Error("Something went wrong while creating user");
+        throw new Error(`Something went wrong while creating user ${error}`);
     }
 });
 
@@ -85,7 +106,7 @@ const loginUser = asyncHandler(async (req, res) => {
         throw new Error("Wrong Password");
     }
 
-    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+    const { accessToken, refreshToken } = generateAccessAndRefreshTokens(
         user._id
     );
 
@@ -96,8 +117,9 @@ const loginUser = asyncHandler(async (req, res) => {
     const options = {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict", // prevents CSRF
-        maxAge: 24 * 60 * 60 * 1000, // 1 day (match refresh token expiry)
+        sameSite: "lax", // prevents CSRF
+        maxAge: 24 * 60 * 60 * 1000, // 1 day (match refresh token expiry),
+        path: "/",
     };
 
     return res
@@ -110,7 +132,7 @@ const loginUser = asyncHandler(async (req, res) => {
             ...options,
             maxAge: 15 * 60 * 1000,
         })
-        .json({ user: loggedInUser, accessToken, message: "Login Successful" });
+        .json({ user: loggedInUser, message: "Login Successful" });
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
@@ -125,7 +147,7 @@ const logoutUser = asyncHandler(async (req, res) => {
     const options = {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "lax",
         path: "/",
     };
 
@@ -136,4 +158,49 @@ const logoutUser = asyncHandler(async (req, res) => {
         .json({ message: "Logged out successfully" });
 });
 
-export { registerUser, loginUser, logoutUser };
+const getUserById = asyncHandler(async (req, res) => {
+    const { userId } = req.params;
+
+    if (!mongoose.isValidObjectId(userId)) {
+        res.status(400);
+        throw new Error("Invalid user ID");
+    }
+
+    const user = await User.findById(userId).select("-password -refreshToken");
+
+    if (!user) {
+        res.status(404);
+        throw new Error("User not found");
+    }
+
+    res.status(200).json(user);
+});
+
+
+const refreshAccessToken = asyncHandler(async (req, res) => {
+    // We get 'req.user' from the new verifyRefreshToken middleware
+    const user = req.user;
+
+    try {
+        const newAccessToken = user.generateAccessToken();
+
+        const options = {
+            httpOnly: true,
+            secure: false, // Set to true in production
+            sameSite: "lax",
+            path: "/",
+        };
+
+        return res
+            .status(200)
+            .cookie("accessToken", newAccessToken, {
+                ...options,
+                maxAge: 15 * 60 * 1000, // 15 minutes
+            })
+            .json({ message: "Access token refreshed" });
+    } catch (err) {
+        throw new Error("Failed to refresh access token");
+    }
+});
+
+export { registerUser, loginUser, logoutUser, getUserById, refreshAccessToken };

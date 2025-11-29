@@ -13,9 +13,13 @@ const answerSchema = new mongoose.Schema(
             ref: "Question",
             required: true,
         },
+        voteCount: {
+            type: Number,
+            default: 0,
+        },
     },
     {
-        timestamps: true, 
+        timestamps: true,
     }
 );
 

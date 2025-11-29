@@ -5,11 +5,13 @@ import {
     getQuestionById,
     updateQuestion,
     deleteQuestion,
+    getAllQuestions,
 } from "../controllers/question.controller.js";
 
-import verifyJWT from "../middlewares/auth.middleware.js";
+import {verifyJWT} from "../middlewares/auth.middleware.js";
 const questionRouter = Router();
 
+questionRouter.route("/").get(getAllQuestions);
 questionRouter.post("/createQuestion", verifyJWT, createQuestion);
 questionRouter.get("/getUserQuestions/:userId", getUserQuestions);
 questionRouter.get("/getQuestionById/:questionId", getQuestionById);

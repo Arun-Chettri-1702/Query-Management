@@ -7,6 +7,8 @@ dotenv.config({
     path: "./.env",
 });
 
+console.log("jbaf", process.env.ACCESS_TOKEN_SECRET);
+
 const userSchema = new mongoose.Schema(
     {
         name: {
@@ -30,8 +32,8 @@ const userSchema = new mongoose.Schema(
         },
         refreshToken: {
             type: String,
-            required: True,
-        }
+            default: null,
+        },
     },
     {
         timestamps: true,
@@ -40,17 +42,17 @@ const userSchema = new mongoose.Schema(
 
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) {
-        next();
+        return next();
     }
     const salt = await bcrypt.genSalt(10);
-    this.password_hash = await bcrypt.hash(this.password, salt);
+    this.password = await bcrypt.hash(this.password, salt);
 });
 
 userSchema.methods.isValidPassword = async function (password) {
     return await bcrypt.compare(password, this.password);
 };
 
-userSchema.methods.generateAccessToken = async function () {
+userSchema.methods.generateAccessToken = function () {
     return jwt.sign(
         {
             _id: this._id,
@@ -62,7 +64,7 @@ userSchema.methods.generateAccessToken = async function () {
     );
 };
 
-userSchema.methods.generateRefreshToken = async function () {
+userSchema.methods.generateRefreshToken = function () {
     return jwt.sign(
         {
             _id: this._id,
