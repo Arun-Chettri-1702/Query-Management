@@ -87,7 +87,8 @@ const AskQuestionPage = () => {
             const response = await questionsAPI.create(questionData);
 
             // Navigate to the newly created question
-            navigate(`/questions/${response.question._id}`);
+            console.log(response);
+            navigate(`/questions/${response.question.id}`);
         } catch (err) {
             setErrors({ submit: err.message || "Failed to post question" });
         } finally {

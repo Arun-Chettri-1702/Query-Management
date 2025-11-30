@@ -1,79 +1,68 @@
+// controllers/answerVote.controller.js
 import asyncHandler from "express-async-handler";
-import mongoose from "mongoose";
-import AnswerVote from "../models/answerVote.model.js";
-import Answer from "../models/answer.model.js";
+import {
+    findVote,
+    createVote,
+    deleteVoteById,
+    updateVoteById,
+} from "../models/answerVote.model.js";
+import {
+    findAnswerById,
+    updateAnswerVoteCount,
+} from "../models/answer.model.js";
 
-const toggleVote = asyncHandler(async (req, res) => {
+/**
+ * toggleVote
+ * Body: { voteType: 1 | -1 }
+ */
+export const toggleVote = asyncHandler(async (req, res) => {
     const { answerId } = req.params;
-    const { voteType } = req.body; // +1 for upvote, -1 for downvote
-    const userId = req.user._id;
+    const { voteType } = req.body;
+    const userId = req.user.id;
 
     if (![1, -1].includes(voteType)) {
         return res.status(400).json({ message: "Invalid vote type" });
     }
 
-    if (!mongoose.isValidObjectId(answerId)) {
-        return res.status(400).json({ message: "Invalid answer id" });
-    }
-
-    const answer = await Answer.findById(answerId);
+    // ensure answer exists
+    const answer = await findAnswerById(answerId);
     if (!answer) {
         return res.status(404).json({ message: "Answer not found" });
     }
 
-    let message;
-    const existingVote = await AnswerVote.findOne({ userId, answerId });
+    // find existing vote
+    const existingVote = await findVote(answerId, userId);
 
-    // 🟢 CASE 1: First time vote
+    let message = "";
     if (!existingVote) {
-        await AnswerVote.create({ userId, answerId, voteType });
-        message = `You ${
-            voteType === 1 ? "upvoted" : "downvoted"
-        } this answer.`;
-    }
-    // 🟠 CASE 2: Same vote → cancel
-    else if (existingVote.voteType === voteType) {
-        await AnswerVote.findByIdAndDelete(existingVote._id);
+        // first-time vote
+        await createVote(answerId, userId, voteType);
+        message =
+            voteType === 1
+                ? "You upvoted this answer."
+                : "You downvoted this answer.";
+    } else if (existingVote.vote_type === voteType) {
+        // user clicked same vote => remove it
+        await deleteVoteById(existingVote.id);
         message = "Your vote has been removed.";
+    } else {
+        // user switches vote
+        await updateVoteById(existingVote.id, voteType);
+        message =
+            voteType === 1
+                ? "Your vote changed to upvote."
+                : "Your vote changed to downvote.";
     }
-    // 🔵 CASE 3: Switch vote
-    else {
-        existingVote.voteType = voteType;
-        await existingVote.save();
-        message = `Your vote changed to ${
-            voteType === 1 ? "upvote" : "downvote"
-        }.`;
-    }
 
-    // ✅ Recalculate vote stats
-    const stats = await AnswerVote.aggregate([
-        { $match: { answerId: new mongoose.Types.ObjectId(answerId) } },
-        {
-            $group: {
-                _id: "$answerId",
-                upvotes: { $sum: { $cond: [{ $eq: ["$voteType", 1] }, 1, 0] } },
-                downvotes: {
-                    $sum: { $cond: [{ $eq: ["$voteType", -1] }, 1, 0] },
-                },
-                score: { $sum: "$voteType" },
-            },
-        },
-    ]);
+    // recalc stats & persist to answers.vote_count
+    const stats = await updateAnswerVoteCount(answerId);
 
-    const { upvotes = 0, downvotes = 0, score = 0 } = stats[0] || {};
+    // find user's current vote state
+    const afterVote = await findVote(answerId, userId);
 
-    // ✅ Find user's current vote state
-    const userVote = await AnswerVote.findOne({ userId, answerId });
-    
     return res.status(200).json({
         message,
-        votes: {
-            upvotes,
-            downvotes,
-            score,
-        },
-        userVote: userVote ? userVote.voteType : 0, // +1, -1, or 0 if no vote
+        votes: stats,
+        userVote: afterVote ? afterVote.vote_type : 0, // 1, -1 or 0
     });
 });
-
-export {toggleVote}

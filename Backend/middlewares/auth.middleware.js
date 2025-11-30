@@ -1,16 +1,12 @@
-import mongoose from "mongoose";
 import asyncHandler from "express-async-handler";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import User from "../models/user.model.js";
+import { findUserById } from "../models/user.model.js";
 
-dotenv.config({
-    path: "./.env",
-});
+dotenv.config({ path: "./.env" });
 
-const verifyJWT = asyncHandler(async (req, res, next) => {
-    console.log("req.cookies:", req.cookies);
-
+// -------------------- VERIFY ACCESS TOKEN --------------------
+export const verifyJWT = asyncHandler(async (req, res, next) => {
     const accessToken =
         req.cookies["accessToken"] ||
         req.headers["authorization"]?.split(" ")[1];
@@ -20,61 +16,60 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
         throw new Error("Access token is missing");
     }
 
-    console.log("Access Token in Middleware:", accessToken);
     try {
-        const decodedToken = jwt.verify(
+        const decoded = jwt.verify(
             accessToken,
             process.env.ACCESS_TOKEN_SECRET
         );
 
-        const user = await User.findById(decodedToken._id).select(
-            "-password -refreshToken"
-        );
+        const user = await findUserById(decoded.id);
 
         if (!user) {
             res.status(401);
-            throw new Error("Unauthorized access - user not found");
+            throw new Error("Unauthorized - user not found");
         }
+
+        delete user.password;
+        delete user.refresh_token;
 
         req.user = user;
         next();
     } catch (err) {
         res.status(401);
-        throw new Error("Unauthorized access - invalid token");
+        throw new Error("Unauthorized - invalid token");
     }
 });
 
-// Add this new function to auth.middleware.js
-const verifyRefreshToken = asyncHandler(async (req, res, next) => {
-    const token = req.cookies.refreshToken; // Only look for the refresh token
+// -------------------- VERIFY REFRESH TOKEN --------------------
+export const verifyRefreshToken = asyncHandler(async (req, res, next) => {
+    const token = req.cookies.refreshToken;
 
     if (!token) {
         res.status(401);
-        throw new Error("Refresh token is missing, not authorized");
+        throw new Error("Refresh token is missing");
     }
 
     try {
-        // 1. Verify the token
-        const decodedToken = jwt.verify(
-            token,
-            process.env.REFRESH_TOKEN_SECRET
-        );
+        const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
 
-        // 2. Find the user in the DB
-        const user = await User.findById(decodedToken._id);
+        const user = await findUserById(decoded.id);
 
-        // 3. Check that the token in the DB matches the token from the cookie
-        if (!user || user.refreshToken !== token) {
+        if (!user) {
             res.status(401);
-            throw new Error("Invalid refresh token");
+            throw new Error("Invalid refresh token - user not found");
         }
 
-        req.user = user; // Attach user to the request
+        if (user.refresh_token !== token) {
+            res.status(401);
+            throw new Error("Refresh token mismatch");
+        }
+
+        delete user.password;
+
+        req.user = user;
         next();
     } catch (err) {
         res.status(401);
-        throw new Error("Refresh token is expired or invalid");
+        throw new Error("Invalid or expired refresh token");
     }
 });
-
-export { verifyJWT, verifyRefreshToken };

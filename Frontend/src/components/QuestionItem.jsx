@@ -15,7 +15,7 @@ const formatDate = (dateString) => {
 
 const QuestionItem = ({ question }) => {
     const {
-        _id,
+        id,
         title,
         voteCount = 0,
         answers = [],
@@ -54,7 +54,7 @@ const QuestionItem = ({ question }) => {
                 <div className="flex-1 min-w-0">
                     {/* Title */}
                     <Link
-                        to={`/questions/${_id}`}
+                        to={`/questions/${id}`}
                         className="text-lg font-semibold text-blue-600 hover:text-blue-800 mb-2 block break-words"
                     >
                         {title}
@@ -63,7 +63,7 @@ const QuestionItem = ({ question }) => {
                     {/* Tags */}
                     <div className="flex flex-wrap gap-2 mb-3">
                         {tags.map((tag) => (
-                            <Tag key={tag._id} name={tag.name} size="sm" />
+                            <Tag key={tag.id} name={tag.name} size="sm" />
                         ))}
                     </div>
 
@@ -71,7 +71,7 @@ const QuestionItem = ({ question }) => {
                     <div className="flex items-center justify-end text-sm">
                         <div className="flex items-center gap-2">
                             <Link
-                                to={`/users/${askedBy?._id || ""}`}
+                                to={`/users/${askedBy?.id || ""}`}
                                 className="flex items-center gap-2 hover:bg-gray-100 rounded px-2 py-1 transition"
                             >
                                 <div className="w-6 h-6 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center">

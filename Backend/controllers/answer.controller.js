@@ -1,174 +1,131 @@
-import mongoose from "mongoose";
+// controllers/answer.controller.js
 import asyncHandler from "express-async-handler";
-import dotenv from "dotenv";
-import Question from "../models/question.model.js";
-import Answer from "../models/answer.model.js";
-import User from "../models/user.model.js"; // Import User for population
+import {
+    createAnswer,
+    getAnswersByQuestionId,
+    getAnswersByUserId,
+    findAnswerById,
+    findAnswerByIdFull,
+    updateAnswerSQL,
+    deleteAnswerSQL,
+} from "../models/answer.model.js";
+import { getQuestionByIdFull } from "../models/question.model.js";
 
-dotenv.config({
-    path: "../.env",
-});
-
-// --- CREATE ANSWER ---
-const postAnswer = asyncHandler(async (req, res) => {
-    // FIX: Use 'questionId' to match your route
+/* POST ANSWER */
+export const postAnswer = asyncHandler(async (req, res) => {
     const { questionId } = req.params;
     const { body } = req.body;
-    const author_id = req.user._id;
 
     if (!body?.trim()) {
         res.status(400);
         throw new Error("Answer body cannot be empty");
     }
-    if (!mongoose.isValidObjectId(questionId)) {
-        res.status(400);
-        throw new Error("Invalid question id");
-    }
-    const questionInstance = await Question.findById(questionId);
-    if (!questionInstance) {
+
+    const question = await getQuestionByIdFull(questionId);
+    if (!question) {
         res.status(404);
         throw new Error("Question not found");
     }
 
-    const answer = await Answer.create({
+    const answerId = await createAnswer({
         body: body.trim(),
-        author_id: author_id,
-        question_id: questionId,
-    }); // FIX: Add this answer's ID to the parent question's 'answers' array
+        authorId: req.user.id,
+        questionId,
+    });
 
-    questionInstance.answers.push(answer._id);
-    await questionInstance.save(); // FIX: Populate the answer *before* sending it to the frontend
+    // fetch the newly created answer by id (safe and populated)
+    const createdAnswer = await findAnswerByIdFull(answerId, req.user.id);
 
-    const populatedAnswer = await Answer.findById(answer._id).populate(
-        "author_id",
-        "name"
-    );
-
-    return res.status(201).json({
-        // Use 201 for "Created"
-        answer: populatedAnswer, // FIX: Use 'answer' key
+    res.status(201).json({
+        answer: createdAnswer,
         message: "Answer posted successfully",
     });
 });
 
-// --- GET ANSWERS FOR A QUESTION ---
-const getAnswersForQuestion = asyncHandler(async (req, res) => {
+/* GET ANSWERS FOR QUESTION */
+export const getAnswersForQuestion = asyncHandler(async (req, res) => {
     const { questionId } = req.params;
-    if (!mongoose.isValidObjectId(questionId)) {
-        res.status(400);
-        throw new Error("Invalid question id");
-    }
+    // user may be undefined (public route) — you used verifyJWT earlier, but handle gracefully
+    const userId = req.user?.id ?? null;
 
-    const questionInstance = await Question.findById(questionId)
-        .populate("askedBy", "name") // FIX: Populate 'askedBy' (from your model)
-        .select("title body tags createdAt askedBy"); // FIX: Select 'askedBy'
-    if (!questionInstance) {
+    const question = await getQuestionByIdFull(questionId);
+    if (!question) {
         res.status(404);
         throw new Error("Question not found");
-    } // FIX: Replaced aggregation with simpler, more correct .find()
+    }
 
-    const answers = await Answer.find({ question_id: questionId })
-        .populate("author_id", "name") // Populates the author
-        .sort({ createdAt: -1 });
+    const answers = await getAnswersByQuestionId(questionId, userId);
 
-    return res.status(200).json({
-        question: questionInstance,
+    res.status(200).json({
+        question,
         totalAnswers: answers.length,
-        answers: answers,
+        answers,
         message: "Answers fetched successfully",
     });
 });
 
-// --- GET ANSWERS FOR A (LOGGED IN) USER ---
-const getAnswersForUser = asyncHandler(async (req, res) => {
-    const userId = req.user._id; // FIX: Replaced aggregation with .find() to get the correct data shape
+/* GET ANSWERS FOR LOGGED-IN USER */
+export const getAnswersForUser = asyncHandler(async (req, res) => {
+    const userId = req.user.id;
 
-    const userAnswers = await Answer.find({ author_id: userId })
-        .sort({ createdAt: -1 })
-        .populate("question_id", "title"); // Populates 'question_id' and selects only 'title'
+    const answers = await getAnswersByUserId(userId);
 
-    return res.status(200).json({
-        totalAnswers: userAnswers.length,
-        answers: userAnswers, // FIX: Use 'answers' key
+    res.status(200).json({
+        totalAnswers: answers.length,
+        answers,
         message: "User answers fetched successfully",
     });
 });
 
-// --- UPDATE ANSWER ---
-const updateAnswer = asyncHandler(async (req, res) => {
+/* UPDATE ANSWER */
+export const updateAnswer = asyncHandler(async (req, res) => {
     const { answerId } = req.params;
     const { body } = req.body;
+
     if (!body?.trim()) {
         res.status(400);
         throw new Error("Answer body cannot be empty");
-        A;
-    }
-    if (!mongoose.isValidObjectId(answerId)) {
-        res.status(400);
-        throw new Error("Invalid answer id");
     }
 
-    const answerInstance = await Answer.findById(answerId);
-    if (!answerInstance) {
+    const answer = await findAnswerById(answerId);
+    if (!answer) {
         res.status(404);
         throw new Error("Answer not found");
     }
 
-    if (answerInstance.author_id.toString() !== req.user._id.toString()) {
+    if (answer.author_id !== req.user.id) {
         res.status(403);
         throw new Error("Not authorized to update this answer");
-    } // Update the answer
+    }
 
-    answerInstance.body = body.trim();
-    await answerInstance.save(); // FIX: Must populate the answer *after* saving
+    await updateAnswerSQL(answerId, body.trim());
 
-    const populatedAnswer = await Answer.findById(answerInstance._id).populate(
-        "author_id",
-        "name"
-    );
+    const updated = await findAnswerByIdFull(answerId, req.user.id);
 
-    return res.status(200).json({
-        updatedAnswer: populatedAnswer, // Send populated answer
+    res.status(200).json({
+        updatedAnswer: updated,
         message: "Answer updated successfully",
     });
 });
 
-// --- DELETE ANSWER ---
-const deleteAnswer = asyncHandler(async (req, res) => {
+/* DELETE ANSWER */
+export const deleteAnswer = asyncHandler(async (req, res) => {
     const { answerId } = req.params;
 
-    if (!mongoose.isValidObjectId(answerId)) {
-        res.status(400);
-        throw new Error("Invalid answer id");
-    }
-
-    const answerInstance = await Answer.findById(answerId);
-    if (!answerInstance) {
+    const answer = await findAnswerById(answerId);
+    if (!answer) {
         res.status(404);
         throw new Error("Answer not found");
     }
 
-    if (answerInstance.author_id.toString() !== req.user._id.toString()) {
+    if (answer.author_id !== req.user.id) {
         res.status(403);
         throw new Error("Not authorized to delete this answer");
-    } // FIX: Remove the answer's ID from the parent question's 'answers' array
+    }
 
-    await Question.findByIdAndUpdate(answerInstance.question_id, {
-        $pull: { answers: answerInstance._id },
-    });
+    await deleteAnswerSQL(answerId);
 
-    const deletedAnswer = await Answer.findByIdAndDelete(answerId);
-
-    return res.status(200).json({
-        deletedAnswer,
+    res.status(200).json({
         message: "Answer deleted successfully",
     });
 });
-
-export {
-    postAnswer,
-    getAnswersForQuestion,
-    getAnswersForUser,
-    updateAnswer,
-    deleteAnswer,
-};

@@ -92,7 +92,7 @@ const QuestionDetailPage = () => {
 
             setAnswers(
                 answers.map((answer) => {
-                    if (answer._id === answerId) {
+                    if (answer.id === answerId) {
                         const currentVote = answer.userVote;
                         let newScore = answer.voteCount || 0;
 
@@ -163,7 +163,7 @@ const QuestionDetailPage = () => {
 
         try {
             await answersAPI.delete(answerId);
-            setAnswers(answers.filter((answer) => answer._id !== answerId));
+            setAnswers(answers.filter((answer) => answer.id !== answerId));
         } catch (err) {
             alert(err.message || "Failed to delete answer");
         }
@@ -185,7 +185,7 @@ const QuestionDetailPage = () => {
             const response = await answersAPI.update(answerId, updatedData);
             setAnswers(
                 answers.map((answer) =>
-                    answer._id === answerId
+                    answer.id === answerId
                         ? response.updatedAnswer || response.answer
                         : answer
                 )
@@ -213,7 +213,7 @@ const QuestionDetailPage = () => {
     const isQuestionAuthor =
         user &&
         question.askedBy &&
-        user._id === (question.askedBy?._id || question.askedBy);
+        user.id === (question.askedBy?.id || question.askedBy);
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -243,7 +243,7 @@ const QuestionDetailPage = () => {
                                 {/* Tags */}
                                 <div className="flex flex-wrap gap-2 mb-4">
                                     {question.tags?.map((tag) => (
-                                        <Tag key={tag._id} name={tag.name} />
+                                        <Tag key={tag.id} name={tag.name} />
                                     ))}
                                 </div>
 
@@ -286,7 +286,7 @@ const QuestionDetailPage = () => {
                                         </div>
                                         <Link
                                             to={`/users/${
-                                                question.askedBy?._id ||
+                                                question.askedBy?.id ||
                                                 question.askedBy
                                             }`}
                                             className="flex items-center gap-2 hover:bg-blue-100 rounded px-2 py-1 transition"
@@ -335,13 +335,13 @@ const QuestionDetailPage = () => {
                                 {answers.map((answer) => {
                                     const isAnswerAuthor =
                                         user &&
-                                        answer.author_id &&
-                                        user._id ===
-                                            (answer.author_id?._id ||
+                                        answer.authorid &&
+                                        user.id ===
+                                            (answer.author_id?.id ||
                                                 answer.author_id);
                                     return (
                                         <AnswerItem
-                                            key={answer._id}
+                                            key={answer.id}
                                             answer={answer}
                                             onVote={handleVoteAnswer}
                                             onDeleteAnswer={handleDeleteAnswer}

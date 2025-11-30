@@ -57,7 +57,7 @@ const Navbar = () => {
                                 {/* User Menu */}
                                 <div className="flex items-center space-x-3">
                                     <Link
-                                        to={`/users/${user._id}`}
+                                        to={`/users/${user.id}`}
                                         className="flex items-center space-x-2 hover:bg-gray-100 rounded-lg px-3 py-2 transition"
                                     >
                                         <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center">

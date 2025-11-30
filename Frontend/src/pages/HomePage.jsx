@@ -215,7 +215,7 @@ const HomePage = () => {
             ) : (
                 <div className="space-y-4">
                     {questions.map((question) => (
-                        <QuestionItem key={question._id} question={question} />
+                        <QuestionItem key={question.id} question={question} />
                     ))}
                 </div>
             )}

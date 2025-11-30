@@ -1,174 +1,126 @@
-import mongoose from "mongoose";
-import Comment from "../models/comment.model.js";
 import asyncHandler from "express-async-handler";
-import User from "../models/user.model.js";
+import {
+    createQuestionComment,
+    createAnswerComment,
+    getQuestionComments,
+    getAnswerComments,
+    findCommentById,
+    updateCommentSQL,
+    deleteCommentSQL,
+} from "../models/comment.model.js";
 
-const createComment = asyncHandler(async (req, res) => {
+// --------------------------------------------
+// CREATE COMMENT (QUESTION OR ANSWER)
+// --------------------------------------------
+export const createComment = asyncHandler(async (req, res) => {
     const { body } = req.body;
     const { questionId, answerId } = req.params;
-    const author_id = req.user._id;
+
     if (!body?.trim()) {
         res.status(400);
         throw new Error("Comment body cannot be empty");
     }
-    let commentData = {
-        body: body?.trim(),
-        author_id,
-    };
+
+    let commentId;
+
     if (questionId) {
-        commentData.question_id = questionId;
+        commentId = await createQuestionComment({
+            body: body.trim(),
+            authorId: req.user.id,
+            questionId,
+        });
     } else if (answerId) {
-        commentData.answer_id = answerId;
-    } else {
-        res.status(500);
-        throw new Error("Server routing error: No parent ID found.");
-    }
-
-    const comment = await Comment.create(commentData);
-    const author = await User.findById(comment.author_id).select(
-        "name email"
-    );
-
-    // Convert Mongoose doc to plain object
-    const responseComment = comment.toObject();
-    // Attach the author object
-    responseComment.author = author;
-    return res
-        .status(200)
-        .json({ message: "Commented successfully ", comment:responseComment });
-});
-
-const getCommentsForParent = asyncHandler(async (req, res) => {
-    const { questionId, answerId } = req.params;
-
-    let matchStage = {};
-    if (questionId) {
-        matchStage.question_id =
-            new mongoose.Types.ObjectId(questionId);
-    } else if (answerId) {
-        matchStage.answer_id = new mongoose.Types.ObjectId(answerId);
+        commentId = await createAnswerComment({
+            body: body.trim(),
+            authorId: req.user.id,
+            answerId,
+        });
     } else {
         res.status(400);
-        throw new Error("No parent ID provided.");
+        throw new Error("Invalid route: no parent specified.");
     }
 
-    const comments = await Comment.aggregate([
-        { $match: matchStage },
-        {
-            $lookup: {
-                from: "users", // collection name in MongoDB (not model name)
-                localField: "author_id",
-                foreignField: "_id",
-                as: "author",
-            },
-        },
-        {
-            $unwind: "$author", // convert array result from $lookup into an object
-        },
-        {
-            $project: {
-                _id: 1,
-                body: 1,
-                createdAt: 1,
-                updatedAt: 1,
-                "author._id": 1,
-                "author.name": 1,
-                "author.email": 1,
-            },
-        },
-        { $sort: { createdAt: -1 } },
-    ]);
+    res.status(201).json({
+        message: "Comment created successfully",
+        commentId,
+    });
+});
 
-    return res.status(200).json({
+// --------------------------------------------
+// GET COMMENTS FOR QUESTION OR ANSWER
+// --------------------------------------------
+export const getCommentsForParent = asyncHandler(async (req, res) => {
+    const { questionId, answerId } = req.params;
+
+    let comments = [];
+
+    if (questionId) {
+        comments = await getQuestionComments(questionId);
+    } else if (answerId) {
+        comments = await getAnswerComments(answerId);
+    } else {
+        res.status(400);
+        throw new Error("No questionId or answerId provided.");
+    }
+
+    res.status(200).json({
         count: comments.length,
         comments,
     });
 });
 
-const updateComment = asyncHandler(async (req, res) => {
-    // --- 1. Get Inputs ---
+// --------------------------------------------
+// UPDATE COMMENT
+// --------------------------------------------
+export const updateComment = asyncHandler(async (req, res) => {
     const { commentId } = req.params;
     const { body } = req.body;
 
-    // --- 2. Validation ---
-    if (!mongoose.isValidObjectId(commentId)) {
-        res.status(400); // Bad Request
-        throw new Error("Invalid Comment ID format");
-    }
-
-    if (!body || body.trim() === "") {
+    if (!body?.trim()) {
         res.status(400);
         throw new Error("Comment body cannot be empty");
     }
 
-    // --- 3. Find the Resource ---
-    const comment = await Comment.findById(commentId);
+    const comment = await findCommentById(commentId);
+
     if (!comment) {
-        res.status(404); // Not Found
+        res.status(404);
         throw new Error("Comment not found");
     }
 
-    // --- 4. Authorization ---
-    if (comment.author_id.toString() !== req.user._id.toString()) {
-        res.status(403); // Forbidden
-        throw new Error("User not authorized to update this comment");
+    if (comment.author_id !== req.user.id) {
+        res.status(403);
+        throw new Error("Not authorized");
     }
 
-    // --- 5. Update and Save ---
-    comment.body = body.trim();
-    // CRITICAL FIX: Await the save operation to ensure it completes and to catch errors.
-    const updatedComment = await comment.save();
+    await updateCommentSQL(comment.type, commentId, body.trim());
 
-    const author = await User.findById(updatedComment.author_id).select(
-        "name email"
-    );
-    const responseComment = updatedComment.toObject();
-    responseComment.author = author; // --- 6. Send Response ---
-    // --- END OF FIX ---
-
-    return res.status(200).json({
-        comment: responseComment, // Send the populated comment
-        message: "Comment has been updated successfully",
+    res.status(200).json({
+        message: "Comment updated successfully",
     });
-
-
 });
 
-const deleteComment = asyncHandler(async (req, res) => {
-    // --- 1. Get Inputs & Validate ---
+// --------------------------------------------
+// DELETE COMMENT
+// --------------------------------------------
+export const deleteComment = asyncHandler(async (req, res) => {
     const { commentId } = req.params;
 
-    if (!mongoose.isValidObjectId(commentId)) {
-        res.status(400); // Bad Request
-        throw new Error("Invalid Comment ID format");
-    }
+    const comment = await findCommentById(commentId);
 
-    // --- 2. Find the Resource ---
-    const comment = await Comment.findById(commentId);
     if (!comment) {
-        res.status(404); // Not Found
+        res.status(404);
         throw new Error("Comment not found");
     }
 
-    // --- 3. Authorization ---
-    // A user can delete a comment if:
-    //  a) They are the author of the comment.
-    //  b) They are an admin or a moderator.
-    const isAuthor = comment.author_id.toString() === req.user._id.toString();
-
-    if (!isAuthor) {
-        res.status(403); // Forbidden
-        throw new Error("User not authorized to delete this comment");
+    if (comment.author_id !== req.user.id) {
+        res.status(403);
+        throw new Error("Not authorized");
     }
 
-    // --- 4. Delete the Resource ---
-    // .remove() is a good choice as it triggers any 'pre remove' Mongoose middleware.
-    await Comment.findByIdAndDelete(commentId);
+    await deleteCommentSQL(comment.type, commentId);
 
-    // --- 5. Send Response ---
-    return res.status(200).json({
-        message: "Comment has been deleted successfully",
+    res.status(200).json({
+        message: "Comment deleted successfully",
     });
 });
-
-export { getCommentsForParent, createComment, updateComment, deleteComment };
