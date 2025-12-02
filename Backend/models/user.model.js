@@ -1,3 +1,4 @@
+// models/user.model.js
 import { query } from "../db/index.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -5,13 +6,42 @@ import dotenv from "dotenv";
 
 dotenv.config({ path: "./.env" });
 
-// Hash password (pre-save equivalent)
+/* -------------------------------------------------------
+   Helper — normalize user output
+------------------------------------------------------- */
+export const mapUser = (u) => {
+    if (!u) return null;
+
+    const id = u.id;
+    const _id = u.id;
+
+    return {
+        id,
+        _id,
+
+        name: u.name,
+        email: u.email,
+        bio: u.bio,
+
+        createdAt: u.created_at,
+        updatedAt: u.updated_at,
+
+        // internal fields hidden from frontend
+        refresh_token: u.refresh_token,
+    };
+};
+
+/* -------------------------------------------------------
+   HASH PASSWORD
+------------------------------------------------------- */
 export const hashPasswordIfNeeded = async (password) => {
     const salt = await bcrypt.genSalt(10);
     return await bcrypt.hash(password, salt);
 };
 
-// Create user
+/* -------------------------------------------------------
+   CREATE USER
+------------------------------------------------------- */
 export const createUser = async ({ name, email, password, bio }) => {
     const hashed = await hashPasswordIfNeeded(password);
 
@@ -24,7 +54,9 @@ export const createUser = async ({ name, email, password, bio }) => {
     return result.insertId;
 };
 
-// Find user by email
+/* -------------------------------------------------------
+   FIND USER BY EMAIL (raw DB row)
+------------------------------------------------------- */
 export const findUserByEmail = async (email) => {
     const rows = await query("SELECT * FROM users WHERE email = ? LIMIT 1", [
         email,
@@ -32,13 +64,20 @@ export const findUserByEmail = async (email) => {
     return rows[0] || null;
 };
 
-// Find user by ID
+/* -------------------------------------------------------
+   FIND USER BY ID (normalized)
+------------------------------------------------------- */
 export const findUserById = async (id) => {
     const rows = await query("SELECT * FROM users WHERE id = ? LIMIT 1", [id]);
-    return rows[0] || null;
+    if (!rows[0]) return null;
+
+    const user = rows[0];
+    return mapUser(user);
 };
 
-// Save refresh token
+/* -------------------------------------------------------
+   SAVE REFRESH TOKEN
+------------------------------------------------------- */
 export const saveRefreshToken = async (userId, token) => {
     await query("UPDATE users SET refresh_token = ? WHERE id = ?", [
         token,
@@ -46,12 +85,16 @@ export const saveRefreshToken = async (userId, token) => {
     ]);
 };
 
-// Compare password
+/* -------------------------------------------------------
+   PASSWORD CHECK
+------------------------------------------------------- */
 export const isValidPassword = async (password, hashedPassword) => {
     return await bcrypt.compare(password, hashedPassword);
 };
 
-// Generate Access Token
+/* -------------------------------------------------------
+   ACCESS TOKEN
+------------------------------------------------------- */
 export const generateAccessToken = (user) => {
     return jwt.sign(
         {
@@ -64,7 +107,9 @@ export const generateAccessToken = (user) => {
     );
 };
 
-// Generate Refresh Token
+/* -------------------------------------------------------
+   REFRESH TOKEN
+------------------------------------------------------- */
 export const generateRefreshToken = (user) => {
     return jwt.sign(
         {

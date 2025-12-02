@@ -133,7 +133,9 @@ export const initDB = async () => {
         });
 
         console.log("Connected to MySQL server.");
-        console.log(connection.execute("Show databases"));
+
+        const [dbs] = await connection.query("SHOW DATABASES");
+        console.log("Databases:", dbs);
 
         // Step 2: create DB if missing
         await connection.query(

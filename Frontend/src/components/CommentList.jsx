@@ -21,16 +21,19 @@ const CommentList = ({ comments, onAddComment }) => {
 
     return (
         <div className="mt-4">
-            {/* Comments List */}
+            {/* Comment List */}
             {comments && comments.length > 0 && (
                 <div className="bg-gray-50 rounded-lg p-3 mb-3">
                     {comments.map((comment) => (
-                        <Comment key={comment._id} comment={comment} />
+                        <Comment
+                            key={comment._id || comment.id} // FIXED
+                            comment={comment}
+                        />
                     ))}
                 </div>
             )}
 
-            {/* Add Comment Button/Form */}
+            {/* Add Comment Form */}
             {user && (
                 <div>
                     {!showForm ? (

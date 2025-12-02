@@ -1,3 +1,4 @@
+// controllers/user.controller.js
 import asyncHandler from "express-async-handler";
 import {
     createUser,
@@ -12,45 +13,57 @@ import {
 import dotenv from "dotenv";
 dotenv.config({ path: "../.env" });
 
-// Generate Access + Refresh Tokens
-const generateAccessAndRefreshTokens = async (userId) => {
+/* -------------------------------------------------------
+   USER NORMALIZER (same structure everywhere)
+------------------------------------------------------- */
+const mapUser = (user) => ({
+    id: user.id,
+    _id: user.id,
+    name: user.name,
+    email: user.email,
+    bio: user.bio || null,
+    createdAt: user.created_at,
+    updatedAt: user.updated_at,
+});
+
+/* -------------------------------------------------------
+   Generate Access + Refresh Token pair
+------------------------------------------------------- */
+const generateTokensForUser = async (userId) => {
     const user = await findUserById(userId);
-    if (!user) throw new Error("User not found");
 
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
     await saveRefreshToken(userId, refreshToken);
 
-    return { accessToken, refreshToken };
+    return {
+        accessToken,
+        refreshToken,
+        user: mapUser(user),
+    };
 };
 
-// ------------------------ REGISTER ------------------------
+/* -------------------------------------------------------
+   REGISTER
+------------------------------------------------------- */
 export const registerUser = asyncHandler(async (req, res) => {
     const { name, email, password, bio } = req.body;
 
-    if ([name, email, password].some((f) => f?.trim() === ""))
+    if ([name, email, password].some((f) => f?.trim() === "")) {
         throw new Error("Required fields cannot be empty");
+    }
 
     const existingUser = await findUserByEmail(email);
     if (existingUser) throw new Error("User already exists");
 
-    const userId = await createUser({
-        name,
-        email,
-        password,
-        bio: bio || "",
-    });
+    const userId = await createUser({ name, email, password, bio });
 
-    const createdUser = await findUserById(userId);
-    delete createdUser.password;
-    delete createdUser.refresh_token;
-
-    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
+    const { accessToken, refreshToken, user } = await generateTokensForUser(
         userId
     );
 
-    const options = {
+    const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
@@ -60,41 +73,36 @@ export const registerUser = asyncHandler(async (req, res) => {
     return res
         .status(200)
         .cookie("refreshToken", refreshToken, {
-            ...options,
+            ...cookieOptions,
             maxAge: 7 * 24 * 60 * 60 * 1000,
         })
         .cookie("accessToken", accessToken, {
-            ...options,
+            ...cookieOptions,
             maxAge: 15 * 60 * 1000,
         })
         .json({
-            user: createdUser,
+            user,
             message: "User registered successfully",
         });
 });
 
-// ------------------------ LOGIN ------------------------
+/* -------------------------------------------------------
+   LOGIN
+------------------------------------------------------- */
 export const loginUser = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
-    if ([email, password].some((f) => f?.trim() === ""))
-        throw new Error("Required fields cannot be empty");
+    const rawUser = await findUserByEmail(email);
+    if (!rawUser) throw new Error("User not found");
 
-    const user = await findUserByEmail(email);
-    if (!user) throw new Error("User not found");
-
-    const valid = await isValidPassword(password, user.password);
+    const valid = await isValidPassword(password, rawUser.password);
     if (!valid) throw new Error("Wrong password");
 
-    const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
-        user.id
+    const { accessToken, refreshToken, user } = await generateTokensForUser(
+        rawUser.id
     );
 
-    const loggedInUser = await findUserById(user.id);
-    delete loggedInUser.password;
-    delete loggedInUser.refresh_token;
-
-    const options = {
+    const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
@@ -104,23 +112,28 @@ export const loginUser = asyncHandler(async (req, res) => {
     return res
         .status(200)
         .cookie("refreshToken", refreshToken, {
-            ...options,
+            ...cookieOptions,
             maxAge: 7 * 24 * 60 * 60 * 1000,
         })
         .cookie("accessToken", accessToken, {
-            ...options,
+            ...cookieOptions,
             maxAge: 15 * 60 * 1000,
         })
-        .json({ user: loggedInUser, message: "Login successful" });
+        .json({
+            user,
+            message: "Login successful",
+        });
 });
 
-// ------------------------ LOGOUT ------------------------
+/* -------------------------------------------------------
+   LOGOUT
+------------------------------------------------------- */
 export const logoutUser = asyncHandler(async (req, res) => {
     const userId = req.user.id;
 
     await saveRefreshToken(userId, null);
 
-    const options = {
+    const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
@@ -128,20 +141,17 @@ export const logoutUser = asyncHandler(async (req, res) => {
     };
 
     return res
-        .clearCookie("refreshToken", options)
-        .clearCookie("accessToken", options)
+        .clearCookie("refreshToken", cookieOptions)
+        .clearCookie("accessToken", cookieOptions)
         .status(200)
         .json({ message: "Logged out successfully" });
 });
 
-// ------------------------ GET USER ------------------------
+/* -------------------------------------------------------
+   GET USER BY ID (normalized)
+------------------------------------------------------- */
 export const getUserById = asyncHandler(async (req, res) => {
     const { userId } = req.params;
-
-    if (isNaN(Number(userId))) {
-        res.status(400);
-        throw new Error("Invalid user ID");
-    }
 
     const user = await findUserById(userId);
     if (!user) {
@@ -149,15 +159,14 @@ export const getUserById = asyncHandler(async (req, res) => {
         throw new Error("User not found");
     }
 
-    delete user.password;
-    delete user.refresh_token;
-
-    res.status(200).json(user);
+    return res.status(200).json(mapUser(user));
 });
 
-// ------------------------ REFRESH ACCESS TOKEN ------------------------
+/* -------------------------------------------------------
+   REFRESH ACCESS TOKEN
+------------------------------------------------------- */
 export const refreshAccessToken = asyncHandler(async (req, res) => {
-    const user = req.user;
+    const user = req.user; // already normalized by middleware
 
     const newAccessToken = generateAccessToken(user);
 

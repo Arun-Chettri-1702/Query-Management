@@ -1,3 +1,4 @@
+// middleware/auth.middleware.js
 import asyncHandler from "express-async-handler";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
@@ -5,11 +6,32 @@ import { findUserById } from "../models/user.model.js";
 
 dotenv.config({ path: "./.env" });
 
-// -------------------- VERIFY ACCESS TOKEN --------------------
+/* ----------------------------------------------------------
+   mapUser() – Normalize user object (matches Option 3 format)
+---------------------------------------------------------- */
+const mapUser = (user) => {
+    if (!user) return null;
+
+    return {
+        id: user.id,
+        _id: user.id,
+
+        name: user.name,
+        email: user.email,
+        bio: user.bio || null,
+
+        createdAt: user.created_at,
+        updatedAt: user.updated_at,
+    };
+};
+
+/* ----------------------------------------------------------
+   VERIFY ACCESS TOKEN
+---------------------------------------------------------- */
 export const verifyJWT = asyncHandler(async (req, res, next) => {
     const accessToken =
-        req.cookies["accessToken"] ||
-        req.headers["authorization"]?.split(" ")[1];
+        req.cookies?.accessToken ||
+        req.headers["authorization"]?.split?.(" ")[1];
 
     if (!accessToken) {
         res.status(401);
@@ -29,10 +51,13 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
             throw new Error("Unauthorized - user not found");
         }
 
+        // remove sensitive data
         delete user.password;
         delete user.refresh_token;
 
-        req.user = user;
+        // normalize and attach
+        req.user = mapUser(user);
+
         next();
     } catch (err) {
         res.status(401);
@@ -40,9 +65,11 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     }
 });
 
-// -------------------- VERIFY REFRESH TOKEN --------------------
+/* ----------------------------------------------------------
+   VERIFY REFRESH TOKEN
+---------------------------------------------------------- */
 export const verifyRefreshToken = asyncHandler(async (req, res, next) => {
-    const token = req.cookies.refreshToken;
+    const token = req.cookies?.refreshToken;
 
     if (!token) {
         res.status(401);
@@ -64,9 +91,12 @@ export const verifyRefreshToken = asyncHandler(async (req, res, next) => {
             throw new Error("Refresh token mismatch");
         }
 
+        // normalize user
         delete user.password;
+        delete user.refresh_token;
 
-        req.user = user;
+        req.user = mapUser(user);
+
         next();
     } catch (err) {
         res.status(401);

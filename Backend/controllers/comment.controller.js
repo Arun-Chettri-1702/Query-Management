@@ -1,3 +1,4 @@
+// controllers/comment.controller.js
 import asyncHandler from "express-async-handler";
 import {
     createQuestionComment,
@@ -9,9 +10,9 @@ import {
     deleteCommentSQL,
 } from "../models/comment.model.js";
 
-// --------------------------------------------
-// CREATE COMMENT (QUESTION OR ANSWER)
-// --------------------------------------------
+/* -------------------------------------------------------
+   CREATE COMMENT
+------------------------------------------------------- */
 export const createComment = asyncHandler(async (req, res) => {
     const { body } = req.body;
     const { questionId, answerId } = req.params;
@@ -40,19 +41,22 @@ export const createComment = asyncHandler(async (req, res) => {
         throw new Error("Invalid route: no parent specified.");
     }
 
+    // fetch normalized comment
+    const comment = await findCommentById(commentId);
+
     res.status(201).json({
         message: "Comment created successfully",
-        commentId,
+        comment,
     });
 });
 
-// --------------------------------------------
-// GET COMMENTS FOR QUESTION OR ANSWER
-// --------------------------------------------
+/* -------------------------------------------------------
+   GET COMMENTS (Question or Answer)
+------------------------------------------------------- */
 export const getCommentsForParent = asyncHandler(async (req, res) => {
     const { questionId, answerId } = req.params;
 
-    let comments = [];
+    let comments;
 
     if (questionId) {
         comments = await getQuestionComments(questionId);
@@ -69,9 +73,9 @@ export const getCommentsForParent = asyncHandler(async (req, res) => {
     });
 });
 
-// --------------------------------------------
-// UPDATE COMMENT
-// --------------------------------------------
+/* -------------------------------------------------------
+   UPDATE COMMENT
+------------------------------------------------------- */
 export const updateComment = asyncHandler(async (req, res) => {
     const { commentId } = req.params;
     const { body } = req.body;
@@ -93,16 +97,19 @@ export const updateComment = asyncHandler(async (req, res) => {
         throw new Error("Not authorized");
     }
 
-    await updateCommentSQL(comment.type, commentId, body.trim());
+    await updateCommentSQL(comment.parentType, commentId, body.trim());
+
+    const updated = await findCommentById(commentId);
 
     res.status(200).json({
         message: "Comment updated successfully",
+        comment: updated,
     });
 });
 
-// --------------------------------------------
-// DELETE COMMENT
-// --------------------------------------------
+/* -------------------------------------------------------
+   DELETE COMMENT
+------------------------------------------------------- */
 export const deleteComment = asyncHandler(async (req, res) => {
     const { commentId } = req.params;
 
@@ -118,7 +125,7 @@ export const deleteComment = asyncHandler(async (req, res) => {
         throw new Error("Not authorized");
     }
 
-    await deleteCommentSQL(comment.type, commentId);
+    await deleteCommentSQL(comment.parentType, commentId);
 
     res.status(200).json({
         message: "Comment deleted successfully",

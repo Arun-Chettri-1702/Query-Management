@@ -23,11 +23,90 @@ export const findAnswerById = async (answerId) => {
 };
 
 /**
+ * Internal helper: map DB row -> normalized answer object (Option 3)
+ */
+const mapRowToAnswer = (r) => {
+    if (!r) return null;
+
+    // canonical ids
+    const id = r.id;
+    const _id = r.id;
+
+    // vote counts
+    const vote_count = r.vote_count ?? 0;
+    const voteCount = vote_count;
+
+    // question id
+    const question_id = r.question_id ?? r.questionId ?? null;
+    const questionId = question_id;
+
+    // author shapes
+    const author_id_number = r.author_id ?? r.authorId ?? null;
+    const author_name = r.author_name ?? r.authorName ?? r.name ?? null;
+
+    const authorObj = {
+        id: author_id_number,
+        _id: author_id_number,
+        name: author_name,
+    };
+
+    // user vote placeholder (will be number 1/-1/0 or null depending on query)
+    const user_vote =
+        typeof r.user_vote !== "undefined"
+            ? r.user_vote
+            : typeof r.userVote !== "undefined"
+            ? r.userVote
+            : 0;
+    const userVote = user_vote ?? 0;
+
+    // votes aggregated
+    const upvotes = r.upvotes ?? 0;
+    const downvotes = r.downvotes ?? 0;
+    const score = r.score ?? vote_count;
+
+    return {
+        // both id shapes
+        id,
+        _id,
+
+        // body + timestamps
+        body: r.body,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+
+        // both vote shapes
+        vote_count,
+        voteCount,
+
+        // question link (both shapes)
+        question_id,
+        questionId,
+
+        // author (both object + simple id)
+        author: { ...authorObj },
+        author_id: author_id_number,
+
+        // author compatibility fields some components expect
+        author_id_obj: { ...authorObj }, // fallback
+        author_name: author_name,
+
+        // votes summary and user vote
+        votes: { upvotes, downvotes, score },
+        upvotes,
+        downvotes,
+        score,
+        user_vote,
+        userVote,
+    };
+};
+
+/**
  * findAnswerByIdFull (populated)
+ * - includes votes aggregated and user's vote (if userId provided)
  */
 export const findAnswerByIdFull = async (answerId, userId = null) => {
-    // Use userId param to optionally include user's vote
     const uid = userId ?? -1; // -1 will never match any real user_id
+
     const rows = await query(
         `
     SELECT
@@ -67,21 +146,7 @@ export const findAnswerByIdFull = async (answerId, userId = null) => {
     const r = rows[0];
     if (!r) return null;
 
-    return {
-        id: r.id,
-        body: r.body,
-        vote_count: r.vote_count || 0,
-        createdAt: r.created_at,
-        updatedAt: r.updated_at,
-        questionId: r.question_id,
-        author: { _id: r.author_id, name: r.author_name },
-        votes: {
-            upvotes: r.upvotes || 0,
-            downvotes: r.downvotes || 0,
-            score: r.score || 0,
-        },
-        userVote: r.user_vote ?? 0, // 1, -1 or 0
-    };
+    return mapRowToAnswer(r);
 };
 
 /**
@@ -90,6 +155,7 @@ export const findAnswerByIdFull = async (answerId, userId = null) => {
  */
 export const getAnswersByQuestionId = async (questionId, userId = null) => {
     const uid = userId ?? -1;
+
     const rows = await query(
         `
     SELECT
@@ -98,6 +164,7 @@ export const getAnswersByQuestionId = async (questionId, userId = null) => {
       a.vote_count,
       a.created_at,
       a.updated_at,
+      a.question_id,
       u.id AS author_id,
       u.name AS author_name,
       COALESCE(av_stats.upvotes, 0) AS upvotes,
@@ -125,20 +192,7 @@ export const getAnswersByQuestionId = async (questionId, userId = null) => {
         [uid, questionId]
     );
 
-    return rows.map((r) => ({
-        id: r.id,
-        body: r.body,
-        vote_count: r.vote_count || 0,
-        createdAt: r.created_at,
-        updatedAt: r.updated_at,
-        author: { _id: r.author_id, name: r.author_name },
-        votes: {
-            upvotes: r.upvotes || 0,
-            downvotes: r.downvotes || 0,
-            score: r.score || 0,
-        },
-        userVote: r.user_vote ?? 0,
-    }));
+    return rows.map(mapRowToAnswer);
 };
 
 /**
@@ -148,23 +202,23 @@ export const getAnswersByUserId = async (userId) => {
     const rows = await query(
         `
     SELECT a.id, a.body, a.vote_count, a.created_at, a.updated_at,
-           q.id AS question_id, q.title AS question_title
+           q.id AS question_id, q.title AS question_title,
+           u.id AS author_id, u.name AS author_name
     FROM answers a
     JOIN questions q ON q.id = a.question_id
+    JOIN users u ON u.id = a.author_id
     WHERE a.author_id = ?
     ORDER BY a.created_at DESC
     `,
         [userId]
     );
 
-    return rows.map((r) => ({
-        id: r.id,
-        body: r.body,
-        vote_count: r.vote_count || 0,
-        createdAt: r.created_at,
-        updatedAt: r.updated_at,
-        question: { id: r.question_id, title: r.question_title },
-    }));
+    return rows.map((r) => {
+        const mapped = mapRowToAnswer(r);
+        // attach question summary
+        mapped.question = { id: r.question_id, title: r.question_title };
+        return mapped;
+    });
 };
 
 /**

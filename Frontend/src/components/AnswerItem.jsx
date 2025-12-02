@@ -21,15 +21,13 @@ const AnswerItem = ({
 
     useEffect(() => {
         fetchComments();
-    }, [answer._id]);
+    }, [answer.id]);
 
     const fetchComments = async () => {
         try {
             setLoadingComments(true);
-            const data = await answersAPI.getComments(answer._id);
+            const data = await answersAPI.getComments(answer.id);
             setComments(data.comments || data);
-        } catch (err) {
-            console.error("Failed to fetch comments:", err);
         } finally {
             setLoadingComments(false);
         }
@@ -37,7 +35,7 @@ const AnswerItem = ({
 
     const handleAddComment = async (commentBody) => {
         try {
-            const data = await commentsAPI.createOnAnswer(answer._id, {
+            const data = await commentsAPI.createOnAnswer(answer.id, {
                 body: commentBody,
             });
             setComments([...comments, data.comment]);
@@ -47,63 +45,53 @@ const AnswerItem = ({
     };
 
     const handleSaveEdit = async () => {
-        if (!editBody.trim()) {
-            setIsEditing(false);
-            return;
-        }
+        if (!editBody.trim()) return setIsEditing(false);
 
         try {
             setIsSaving(true);
-            await onUpdateAnswer(answer._id, { body: editBody });
+            await onUpdateAnswer(answer.id, { body: editBody });
             setIsEditing(false);
-        } catch (err) {
-            alert(err.message || "Failed to update answer");
         } finally {
             setIsSaving(false);
         }
     };
 
-    const formatDate = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString("en-US", {
+    const formatDate = (d) =>
+        new Date(d).toLocaleString("en-US", {
             year: "numeric",
             month: "short",
             day: "numeric",
             hour: "2-digit",
             minute: "2-digit",
         });
-    };
 
     return (
         <div className="border-b border-gray-200 py-6">
             <div className="flex gap-4">
-                {/* Vote Control */}
-                <div className="flex-shrink-0">
-                    <VoteControl
-                        score={answer.voteCount || 0}
-                        userVote={answer.userVote}
-                        onUpvote={() => onVote(answer._id, 1)}
-                        onDownvote={() => onVote(answer._id, -1)}
-                        disabled={!user}
-                    />
-                </div>
+                {/* Votes */}
+                <VoteControl
+                    score={answer.voteCount}
+                    userVote={answer.userVote}
+                    onUpvote={() => onVote(answer.id, 1)}
+                    onDownvote={() => onVote(answer.id, -1)}
+                    disabled={!user}
+                />
 
-                {/* Answer Content */}
                 <div className="flex-1">
-                    {/* Answer Body */}
+                    {/* BODY */}
                     {isEditing ? (
-                        <div className="mb-4">
+                        <div>
                             <textarea
                                 value={editBody}
                                 onChange={(e) => setEditBody(e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                                rows="8"
+                                rows={6}
+                                className="w-full border rounded p-3"
                             />
                             <div className="flex gap-2 mt-2">
                                 <button
                                     onClick={handleSaveEdit}
                                     disabled={isSaving}
-                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:bg-blue-400"
+                                    className="bg-blue-600 text-white px-4 py-2 rounded"
                                 >
                                     {isSaving ? "Saving..." : "Save"}
                                 </button>
@@ -112,39 +100,37 @@ const AnswerItem = ({
                                         setIsEditing(false);
                                         setEditBody(answer.body);
                                     }}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50"
+                                    className="px-4 py-2 border rounded"
                                 >
                                     Cancel
                                 </button>
                             </div>
                         </div>
                     ) : (
-                        <div className="prose max-w-none mb-4">
-                            <p className="text-gray-800 whitespace-pre-wrap">
-                                {answer.body}
-                            </p>
-                        </div>
+                        <p className="text-gray-700 whitespace-pre-wrap">
+                            {answer.body}
+                        </p>
                     )}
 
-                    {/* Author Info */}
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-4">
-                            <button className="text-sm text-gray-600 hover:text-blue-600">
+                    {/* Footer */}
+                    <div className="flex justify-between items-center mt-4">
+                        <div className="flex gap-4">
+                            <button className="text-sm text-gray-600">
                                 Share
                             </button>
                             {canEdit && !isEditing && (
                                 <>
                                     <button
                                         onClick={() => setIsEditing(true)}
-                                        className="text-sm text-gray-600 hover:text-blue-600"
+                                        className="text-sm text-blue-600"
                                     >
                                         Edit
                                     </button>
                                     <button
                                         onClick={() =>
-                                            onDeleteAnswer(answer._id)
+                                            onDeleteAnswer(answer.id)
                                         }
-                                        className="text-sm text-gray-600 hover:text-red-600"
+                                        className="text-sm text-red-600"
                                     >
                                         Delete
                                     </button>
@@ -152,34 +138,25 @@ const AnswerItem = ({
                             )}
                         </div>
 
-                        {/* Author Card */}
-                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                            <div className="text-xs text-gray-600 mb-1">
-                                answered {formatDate(answer.createdAt)}
+                        {/* Author */}
+                        <Link
+                            to={`/users/${answer.author.id}`}
+                            className="flex items-center gap-2 bg-blue-50 border p-2 rounded"
+                        >
+                            <div className="w-8 h-8 bg-blue-500 text-white rounded flex items-center justify-center">
+                                {answer.author.name[0].toUpperCase()}
                             </div>
-                            <Link
-                                to={`/users/${
-                                    answer.author_id?._id || answer.author_id
-                                }`}
-                                className="flex items-center gap-2 hover:bg-blue-100 rounded px-2 py-1 transition"
-                            >
-                                <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded flex items-center justify-center">
-                                    <span className="text-white text-sm font-semibold">
-                                        {answer.author_id?.name
-                                            ?.charAt(0)
-                                            .toUpperCase() || "U"}
-                                    </span>
+                            <div>
+                                <div className="text-sm font-semibold">
+                                    {answer.author.name}
                                 </div>
-                                <div>
-                                    <div className="text-sm font-semibold text-gray-900">
-                                        {answer.author_id?.name || "Anonymous"}
-                                    </div>
+                                <div className="text-xs text-gray-600">
+                                    answered {formatDate(answer.createdAt)}
                                 </div>
-                            </Link>
-                        </div>
+                            </div>
+                        </Link>
                     </div>
 
-                    {/* Comments */}
                     <CommentList
                         comments={comments}
                         loading={loadingComments}

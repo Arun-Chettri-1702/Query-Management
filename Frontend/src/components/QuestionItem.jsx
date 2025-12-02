@@ -10,19 +10,42 @@ const formatDate = (dateString) => {
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
     if (diffInSeconds < 86400)
         return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+    return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+    });
 };
 
 const QuestionItem = ({ question }) => {
-    const {
-        id,
-        title,
-        voteCount = 0,
-        answers = [],
-        tags = [],
-        askedBy,
-        createdAt,
-    } = question;
+    // Normalize IDs (safe)
+    const qId = question.id || question._id;
+
+    // Normalize vote count
+    const voteCount = question.voteCount ?? question.vote_count ?? 0;
+
+    // Normalize answers length (backend sometimes sends count instead of array)
+    const answers = Array.isArray(question.answers) ? question.answers : [];
+    const answerCount = question.answerCount ?? answers.length ?? 0;
+
+    // Normalize tags
+    const tags = Array.isArray(question.tags)
+        ? question.tags.map((t) => ({
+              id: t.id || t._id,
+              name: t.name,
+          }))
+        : [];
+
+    // Normalize askedBy object
+    const askedBy = (() => {
+        const a = question.askedBy || question.asked_by || {};
+        return {
+            id: a.id || a._id || question.askedBy_id || null,
+            name: a.name || question.askedBy_name || "Anonymous",
+        };
+    })();
+
+    const createdAt = question.createdAt || question.created_at;
 
     return (
         <div className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md transition">
@@ -39,12 +62,12 @@ const QuestionItem = ({ question }) => {
                     <div className="text-center">
                         <div
                             className={`text-2xl font-semibold ${
-                                answers.length > 0
+                                answerCount > 0
                                     ? "text-green-600"
                                     : "text-gray-900"
                             }`}
                         >
-                            {answers.length}
+                            {answerCount}
                         </div>
                         <div className="text-xs text-gray-500">answers</div>
                     </div>
@@ -54,10 +77,10 @@ const QuestionItem = ({ question }) => {
                 <div className="flex-1 min-w-0">
                     {/* Title */}
                     <Link
-                        to={`/questions/${id}`}
+                        to={`/questions/${qId}`}
                         className="text-lg font-semibold text-blue-600 hover:text-blue-800 mb-2 block break-words"
                     >
-                        {title}
+                        {question.title}
                     </Link>
 
                     {/* Tags */}
@@ -71,18 +94,16 @@ const QuestionItem = ({ question }) => {
                     <div className="flex items-center justify-end text-sm">
                         <div className="flex items-center gap-2">
                             <Link
-                                to={`/users/${askedBy?.id || ""}`}
+                                to={`/users/${askedBy.id || ""}`}
                                 className="flex items-center gap-2 hover:bg-gray-100 rounded px-2 py-1 transition"
                             >
                                 <div className="w-6 h-6 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center">
                                     <span className="text-white text-xs font-semibold">
-                                        {askedBy?.name
-                                            ?.charAt(0)
-                                            .toUpperCase() || "U"}
+                                        {askedBy.name.charAt(0).toUpperCase()}
                                     </span>
                                 </div>
                                 <span className="text-gray-700 font-medium">
-                                    {askedBy?.name || "Anonymous"}
+                                    {askedBy.name}
                                 </span>
                             </Link>
                             <span className="text-gray-400">•</span>

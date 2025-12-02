@@ -45,7 +45,6 @@ export const postAnswer = asyncHandler(async (req, res) => {
 /* GET ANSWERS FOR QUESTION */
 export const getAnswersForQuestion = asyncHandler(async (req, res) => {
     const { questionId } = req.params;
-    // user may be undefined (public route) — you used verifyJWT earlier, but handle gracefully
     const userId = req.user?.id ?? null;
 
     const question = await getQuestionByIdFull(questionId);

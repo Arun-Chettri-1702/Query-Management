@@ -12,21 +12,17 @@ const HomePage = () => {
 
     const [filter, setFilter] = useState("newest");
 
-    // ✅ For searching
     const [searchQuery, setSearchQuery] = useState("");
     const [submittedSearch, setSubmittedSearch] = useState("");
 
-    // ✅ For pagination
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const questionsPerPage = 10;
 
+    const questionsPerPage = 10;
     const { user } = useAuth();
 
-    // ✅ Fetch questions whenever filter, page, or search changes
     useEffect(() => {
         fetchQuestions();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filter, currentPage, submittedSearch]);
 
     const fetchQuestions = async () => {
@@ -39,16 +35,23 @@ const HomePage = () => {
                 limit: questionsPerPage,
             };
 
-            // Apply filters
             if (filter === "votes") params.sort = "votes";
             if (filter === "unanswered") params.unanswered = "true";
 
-            // Apply search if provided
             if (submittedSearch.trim()) params.search = submittedSearch.trim();
 
             const data = await questionsAPI.getAll(params);
 
-            setQuestions(data.questions || []);
+            const normalized = (data.questions || []).map((q) => ({
+                ...q,
+                id: q.id || q._id,
+                voteCount: q.voteCount ?? q.vote_count ?? 0,
+                createdAt: q.createdAt || q.created_at,
+                answerCount:
+                    q.answerCount ?? (q.answers ? q.answers.length : 0),
+            }));
+
+            setQuestions(normalized);
             setTotalPages(data.totalPages || 1);
         } catch (err) {
             setError(err.message || "Failed to fetch questions");
@@ -69,10 +72,10 @@ const HomePage = () => {
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
 
-    // ✅ Render pagination buttons
     const renderPagination = () => {
         const pages = [];
         const maxVisiblePages = 5;
+
         let startPage = Math.max(
             1,
             currentPage - Math.floor(maxVisiblePages / 2)
@@ -102,10 +105,7 @@ const HomePage = () => {
         return pages;
     };
 
-    // ✅ Loading State
-    if (loading) {
-        return <LoadingSpinner fullScreen />;
-    }
+    if (loading) return <LoadingSpinner fullScreen />;
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -120,6 +120,7 @@ const HomePage = () => {
                         {questions.length !== 1 ? "s" : ""}
                     </p>
                 </div>
+
                 {user && (
                     <Link
                         to="/ask"
@@ -130,7 +131,7 @@ const HomePage = () => {
                 )}
             </div>
 
-            {/* Search Bar */}
+            {/* Search */}
             <form onSubmit={handleSearch} className="mb-6">
                 <div className="relative">
                     <input
@@ -140,6 +141,7 @@ const HomePage = () => {
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full px-4 py-3 pl-12 pr-24 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+
                     <svg
                         className="absolute left-3 top-3.5 w-5 h-5 text-gray-400"
                         xmlns="http://www.w3.org/2000/svg"
@@ -154,6 +156,7 @@ const HomePage = () => {
                             d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z"
                         />
                     </svg>
+
                     <button
                         type="submit"
                         className="absolute right-2 top-2 bg-blue-600 text-white px-4 py-1.5 rounded-md hover:bg-blue-700 transition"
@@ -183,14 +186,14 @@ const HomePage = () => {
                 ))}
             </div>
 
-            {/* Error Message */}
+            {/* Error */}
             {error && (
                 <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-4 border border-red-200">
                     {error}
                 </div>
             )}
 
-            {/* Question List */}
+            {/* Questions */}
             {questions.length === 0 ? (
                 <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -198,24 +201,14 @@ const HomePage = () => {
                             ? "No questions found"
                             : "No questions yet"}
                     </h3>
-                    <p className="text-gray-600 mb-6">
-                        {submittedSearch
-                            ? "Try a different search term"
-                            : "Be the first to ask a question!"}
-                    </p>
-                    {user && !submittedSearch && (
-                        <Link
-                            to="/ask"
-                            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition"
-                        >
-                            Ask a Question
-                        </Link>
-                    )}
                 </div>
             ) : (
                 <div className="space-y-4">
                     {questions.map((question) => (
-                        <QuestionItem key={question.id} question={question} />
+                        <QuestionItem
+                            key={question.id || question._id}
+                            question={question}
+                        />
                     ))}
                 </div>
             )}
@@ -235,13 +228,7 @@ const HomePage = () => {
                         Previous
                     </button>
 
-                    {currentPage > 3 && (
-                        <span className="text-gray-500">...</span>
-                    )}
                     {renderPagination()}
-                    {currentPage < totalPages - 2 && (
-                        <span className="text-gray-500">...</span>
-                    )}
 
                     <button
                         onClick={() => handlePageChange(currentPage + 1)}

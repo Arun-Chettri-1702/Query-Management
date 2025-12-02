@@ -34,16 +34,13 @@ const TagsPage = () => {
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {/* Header */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Tags</h1>
                 <p className="text-gray-600">
-                    A tag is a keyword or label that categorizes your question
-                    with other, similar questions.
+                    A tag is a keyword or label that categorizes your question.
                 </p>
             </div>
 
-            {/* Search */}
             <div className="mb-6">
                 <div className="relative">
                     <input
@@ -51,7 +48,7 @@ const TagsPage = () => {
                         placeholder="Filter by tag name..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full md:w-96 px-4 py-3 pl-11 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full md:w-96 px-4 py-3 pl-11 border border-gray-300 rounded-lg"
                     />
                     <svg
                         className="absolute left-3 top-3.5 w-5 h-5 text-gray-400"
@@ -69,14 +66,12 @@ const TagsPage = () => {
                 </div>
             </div>
 
-            {/* Error Message */}
             {error && (
                 <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
                     {error}
                 </div>
             )}
 
-            {/* Tags Grid */}
             {filteredTags.length === 0 ? (
                 <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
                     <p className="text-gray-600">
@@ -89,10 +84,11 @@ const TagsPage = () => {
                         {filteredTags.length} tag
                         {filteredTags.length !== 1 ? "s" : ""}
                     </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {filteredTags.map((tag) => (
                             <Link
-                                key={tag._id}
+                                key={tag.id}
                                 to={`/tags/${tag.name}`}
                                 className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-md hover:border-blue-300 transition"
                             >

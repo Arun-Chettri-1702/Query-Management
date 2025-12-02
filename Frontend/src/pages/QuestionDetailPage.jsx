@@ -1,3 +1,4 @@
+// src/pages/QuestionDetailPage.jsx
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { questionsAPI, answersAPI, commentsAPI } from "../services/api";
@@ -28,6 +29,7 @@ const QuestionDetailPage = () => {
 
     useEffect(() => {
         fetchQuestionData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [questionId]);
 
     const fetchQuestionData = async () => {
@@ -36,22 +38,27 @@ const QuestionDetailPage = () => {
             setLoading(true);
             setError("");
 
+            // fetch question
             questionData = await questionsAPI.getById(questionId);
             setQuestion(questionData);
 
+            // fetch answers (API might return { answers: [...] } or raw array)
             const answersData = await questionsAPI.getAnswers(questionId);
-            setAnswers(answersData.answers || answersData);
+            setAnswers(answersData?.answers ?? answersData ?? []);
 
+            // fetch comments for question (API might return { comments: [...] } or raw array)
             const commentsData = await questionsAPI.getComments(questionId);
-            setComments(commentsData.comments || commentsData);
+            setComments(commentsData?.comments ?? commentsData ?? []);
         } catch (err) {
-            if (err.response && err.response.status === 401) {
+            // be explicit about common error cases
+            if (err?.response?.status === 401) {
                 setError("You must be logged in to view answers and comments.");
+                // keep question if we already had it
                 if (questionData) setQuestion(questionData);
-            } else if (err.response && err.response.status === 404) {
+            } else if (err?.response?.status === 404) {
                 setError("This question could not be found.");
             } else {
-                setError(err.message || "Failed to load question");
+                setError(err?.message ?? "Failed to load question");
             }
         } finally {
             setLoading(false);
@@ -61,22 +68,31 @@ const QuestionDetailPage = () => {
     const handleUpdateQuestion = async (updatedData) => {
         try {
             const response = await questionsAPI.update(questionId, updatedData);
-            setQuestion(response.updatedQuestion);
+            // controller returns { updatedQuestion: {...} }
+            const updatedQuestion =
+                response?.updatedQuestion ?? response?.question ?? null;
+            if (updatedQuestion) setQuestion(updatedQuestion);
             setShowEditModal(false);
         } catch (err) {
             console.error("Failed to update question:", err);
-            throw new Error(err.message || "Failed to update question");
+            throw new Error(err?.message ?? "Failed to update question");
         }
     };
 
     const handleDeleteQuestion = async () => {
         try {
+            if (
+                !window.confirm(
+                    "Delete this question? This action cannot be undone."
+                )
+            )
+                return;
             setIsDeleting(true);
             await questionsAPI.delete(questionId);
             setShowDeleteModal(false);
             navigate("/");
         } catch (err) {
-            alert(err.message || "Failed to delete question");
+            alert(err?.message ?? "Failed to delete question");
             setIsDeleting(false);
         }
     };
@@ -88,42 +104,41 @@ const QuestionDetailPage = () => {
         }
 
         try {
+            // call backend to toggle vote
             await answersAPI.vote(answerId, voteType);
 
-            setAnswers(
-                answers.map((answer) => {
-                    if (answer.id === answerId) {
-                        const currentVote = answer.userVote;
-                        let newScore = answer.voteCount || 0;
+            // optimistic UI update — local transform must use canonical fields
+            setAnswers((prev) =>
+                prev.map((ans) => {
+                    if (ans.id !== answerId) return ans;
 
-                        if (currentVote === voteType) {
-                            newScore -= voteType;
-                            return {
-                                ...answer,
-                                voteCount: newScore,
-                                userVote: null,
-                            };
-                        } else if (currentVote) {
-                            newScore += voteType * 2;
-                            return {
-                                ...answer,
-                                voteCount: newScore,
-                                userVote: voteType,
-                            };
-                        } else {
-                            newScore += voteType;
-                            return {
-                                ...answer,
-                                voteCount: newScore,
-                                userVote: voteType,
-                            };
-                        }
+                    // current userVote may be 1|-1|0|null
+                    const currentVote = ans.userVote ?? 0;
+                    let newVote = voteType;
+                    let newScore = ans.voteCount ?? 0;
+
+                    if (currentVote === voteType) {
+                        // clicking same vote removes it
+                        newVote = 0;
+                        newScore = newScore - voteType;
+                    } else if (currentVote === 0) {
+                        // first-time vote
+                        newScore = newScore + voteType;
+                    } else {
+                        // switching vote (e.g., -1 -> 1) -> add 2*voteType
+                        newScore = newScore + voteType * 2;
                     }
-                    return answer;
+
+                    return {
+                        ...ans,
+                        voteCount: newScore,
+                        userVote: newVote === 0 ? null : newVote,
+                    };
                 })
             );
         } catch (err) {
-            alert(err.message || "Failed to vote");
+            console.error("Vote failed:", err);
+            alert(err?.message ?? "Failed to vote");
         }
     };
 
@@ -134,12 +149,19 @@ const QuestionDetailPage = () => {
         try {
             setIsSubmittingAnswer(true);
             const data = await answersAPI.create(questionId, {
-                body: answerBody,
+                body: answerBody.trim(),
             });
-            setAnswers([...answers, data.answer]);
-            setAnswerBody("");
+            // backend returns { answer: {...} } per your controller
+            const created = data?.answer ?? data;
+            if (created) {
+                setAnswers((prev) => [...prev, created]);
+                setAnswerBody("");
+            } else {
+                throw new Error("Invalid response from server");
+            }
         } catch (err) {
-            alert(err.message || "Failed to submit answer");
+            console.error("Submit answer failed:", err);
+            alert(err?.message ?? "Failed to submit answer");
         } finally {
             setIsSubmittingAnswer(false);
         }
@@ -150,26 +172,43 @@ const QuestionDetailPage = () => {
             const data = await commentsAPI.createOnQuestion(questionId, {
                 body: commentBody,
             });
-            setComments([...comments, data.comment]);
+            const created = data?.comment ?? data;
+            if (created) setComments((prev) => [...prev, created]);
         } catch (err) {
             console.error("Failed to add comment:", err);
         }
     };
 
     const handleDeleteAnswer = async (answerId) => {
-        if (!window.confirm("Are you sure you want to delete this answer?")) {
+        if (!window.confirm("Are you sure you want to delete this answer?"))
             return;
-        }
 
         try {
             await answersAPI.delete(answerId);
-            setAnswers(answers.filter((answer) => answer.id !== answerId));
+            setAnswers((prev) => prev.filter((a) => a.id !== answerId));
         } catch (err) {
-            alert(err.message || "Failed to delete answer");
+            console.error("Delete answer failed:", err);
+            alert(err?.message ?? "Failed to delete answer");
+        }
+    };
+
+    const handleUpdateAnswer = async (answerId, updatedData) => {
+        try {
+            const response = await answersAPI.update(answerId, updatedData);
+            const updated = response?.updatedAnswer ?? response?.answer ?? null;
+            if (!updated) throw new Error("Invalid response from server");
+
+            setAnswers((prev) =>
+                prev.map((a) => (a.id === answerId ? updated : a))
+            );
+        } catch (err) {
+            console.error("Failed to update answer:", err);
+            throw err;
         }
     };
 
     const formatDate = (dateString) => {
+        if (!dateString) return "";
         const date = new Date(dateString);
         return date.toLocaleDateString("en-US", {
             year: "numeric",
@@ -178,22 +217,6 @@ const QuestionDetailPage = () => {
             hour: "2-digit",
             minute: "2-digit",
         });
-    };
-
-    const handleUpdateAnswer = async (answerId, updatedData) => {
-        try {
-            const response = await answersAPI.update(answerId, updatedData);
-            setAnswers(
-                answers.map((answer) =>
-                    answer.id === answerId
-                        ? response.updatedAnswer || response.answer
-                        : answer
-                )
-            );
-        } catch (err) {
-            console.error("Failed to update answer:", err);
-            throw new Error(err.message || "Failed to update answer");
-        }
     };
 
     if (loading) return <LoadingSpinner fullScreen />;
@@ -210,10 +233,10 @@ const QuestionDetailPage = () => {
 
     if (!question) return null;
 
+    // canonical check for question author
+    const questionAuthorId = question?.askedBy?.id ?? question?.askedBy ?? null;
     const isQuestionAuthor =
-        user &&
-        question.askedBy &&
-        user.id === (question.askedBy?.id || question.askedBy);
+        user && questionAuthorId && user.id === questionAuthorId;
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -285,22 +308,19 @@ const QuestionDetailPage = () => {
                                             {formatDate(question.createdAt)}
                                         </div>
                                         <Link
-                                            to={`/users/${
-                                                question.askedBy?.id ||
-                                                question.askedBy
-                                            }`}
+                                            to={`/users/${question.askedBy.id}`}
                                             className="flex items-center gap-2 hover:bg-blue-100 rounded px-2 py-1 transition"
                                         >
                                             <div className="w-8 h-8 bg-gradient-to-br from-purple-400 to-pink-500 rounded flex items-center justify-center">
                                                 <span className="text-white text-sm font-semibold">
-                                                    {question.askedBy?.name
+                                                    {question.askedBy.name
                                                         ?.charAt(0)
-                                                        .toUpperCase() || "U"}
+                                                        ?.toUpperCase() ?? "U"}
                                                 </span>
                                             </div>
                                             <div>
                                                 <div className="text-sm font-semibold text-gray-900">
-                                                    {question.askedBy?.name ||
+                                                    {question.askedBy.name ??
                                                         "Anonymous"}
                                                 </div>
                                             </div>
@@ -335,15 +355,14 @@ const QuestionDetailPage = () => {
                                 {answers.map((answer) => {
                                     const isAnswerAuthor =
                                         user &&
-                                        answer.authorid &&
-                                        user.id ===
-                                            (answer.author_id?.id ||
-                                                answer.author_id);
+                                        answer.author &&
+                                        user.id === answer.author.id;
                                     return (
                                         <AnswerItem
                                             key={answer.id}
                                             answer={answer}
                                             onVote={handleVoteAnswer}
+                                            onUpdateAnswer={handleUpdateAnswer}
                                             onDeleteAnswer={handleDeleteAnswer}
                                             canEdit={isAnswerAuthor}
                                         />

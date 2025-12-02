@@ -1,6 +1,6 @@
 const VoteControl = ({
     score,
-    userVote = null,
+    userVote = 0, // backend sends 1, -1, or 0
     onUpvote,
     onDownvote,
     disabled = false,
@@ -12,7 +12,7 @@ const VoteControl = ({
                 onClick={onUpvote}
                 disabled={disabled}
                 className={`p-2 rounded-lg transition ${
-                    userVote === "upvote"
+                    userVote === 1
                         ? "bg-orange-100 text-orange-600"
                         : "hover:bg-gray-100 text-gray-600 hover:text-orange-600"
                 } ${
@@ -24,7 +24,7 @@ const VoteControl = ({
             >
                 <svg
                     className="w-8 h-8"
-                    fill={userVote === "upvote" ? "currentColor" : "none"}
+                    fill={userVote === 1 ? "currentColor" : "none"}
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                 >
@@ -55,7 +55,7 @@ const VoteControl = ({
                 onClick={onDownvote}
                 disabled={disabled}
                 className={`p-2 rounded-lg transition ${
-                    userVote === "downvote"
+                    userVote === -1
                         ? "bg-blue-100 text-blue-600"
                         : "hover:bg-gray-100 text-gray-600 hover:text-blue-600"
                 } ${
@@ -67,7 +67,7 @@ const VoteControl = ({
             >
                 <svg
                     className="w-8 h-8"
-                    fill={userVote === "downvote" ? "currentColor" : "none"}
+                    fill={userVote === -1 ? "currentColor" : "none"}
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                 >

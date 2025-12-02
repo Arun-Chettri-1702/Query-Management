@@ -7,20 +7,19 @@ import { useAuth } from "../hooks/useAuth";
 
 const UserProfilePage = () => {
     const { userId } = useParams();
-
-    // Avoid naming conflict with profile user
     const { user: loggedInUser } = useAuth();
 
-    // State
+    // Proper self-profile check (fix #1)
+    const isOwnProfile =
+        loggedInUser &&
+        String(loggedInUser.id || loggedInUser._id) === String(userId);
+
     const [profileUser, setProfileUser] = useState(null);
     const [questions, setQuestions] = useState([]);
     const [answers, setAnswers] = useState([]);
     const [activeTab, setActiveTab] = useState("questions");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-
-    // Check if logged-in user is viewing their own profile
-    const isOwnProfile = loggedInUser?._id === userId;
 
     useEffect(() => {
         fetchUserData();
@@ -31,8 +30,7 @@ const UserProfilePage = () => {
             setLoading(true);
             setError("");
 
-            // Fetch all data (parallelized)
-            const [userData, questionsData, answersData] = await Promise.all([
+            const [u, q, a] = await Promise.all([
                 usersAPI.getById(userId),
                 usersAPI.getQuestions(userId),
                 isOwnProfile
@@ -40,15 +38,30 @@ const UserProfilePage = () => {
                     : Promise.resolve({ answers: [] }),
             ]);
 
-            setProfileUser(userData);
-            setQuestions(questionsData.questions || questionsData);
-            setAnswers(answersData.answers || answersData);
+            // Normalize questions
+            const normalizedQuestions = (q.questions || []).map((x) => ({
+                ...x,
+                id: x.id || x._id,
+                createdAt: x.createdAt || x.created_at,
+                voteCount: x.voteCount ?? x.vote_count ?? 0,
+            }));
+
+            // Normalize answers
+            const normalizedAnswers = (a.answers || []).map((x) => ({
+                ...x,
+                id: x.id || x._id,
+                _id: x.id || x._id,
+                createdAt: x.createdAt || x.created_at,
+                voteCount: x.voteCount ?? x.vote_count ?? 0,
+                questionId: x.question?.id || x.question_id || x.questionId,
+            }));
+
+            setProfileUser(u);
+            setQuestions(normalizedQuestions);
+            setAnswers(normalizedAnswers);
         } catch (err) {
-            if (err.response && err.response.status === 404) {
-                setError("User not found.");
-            } else {
-                setError(err.message || "Failed to load user profile.");
-            }
+            if (err.response?.status === 404) setError("User not found.");
+            else setError(err.message || "Failed to load profile.");
         } finally {
             setLoading(false);
         }
@@ -72,50 +85,32 @@ const UserProfilePage = () => {
                 </div>
             </div>
         );
+
     if (!profileUser) return null;
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            {/* --- User Header --- */}
+            {/* Profile Header */}
             <div className="bg-white rounded-lg border border-gray-200 p-8 mb-6">
                 <div className="flex items-start gap-6">
-                    {/* Avatar */}
-                    <div className="w-32 h-32 bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <div className="w-32 h-32 bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
                         <span className="text-white text-5xl font-bold">
                             {profileUser.name?.charAt(0).toUpperCase() || "U"}
                         </span>
                     </div>
 
-                    {/* User Info */}
                     <div className="flex-1">
                         <h1 className="text-3xl font-bold text-gray-900 mb-2">
                             {profileUser.name}
                         </h1>
+
                         <div className="flex items-center gap-4 text-gray-600 mb-4">
-                            <div className="flex items-center gap-2">
-                                <svg
-                                    className="w-5 h-5"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                />
-                                <span>{profileUser.email}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <svg
-                                    className="w-5 h-5"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                />
-                                <span>
-                                    Member since{" "}
-                                    {formatDate(profileUser.createdAt)}
-                                </span>
-                            </div>
+                            <span>{profileUser.email}</span>
+                            <span>
+                                Member since {formatDate(profileUser.createdAt)}
+                            </span>
                         </div>
 
-                        {/* Stats */}
                         <div className="flex gap-6">
                             <div className="text-center">
                                 <div className="text-3xl font-bold text-green-600">
@@ -125,6 +120,7 @@ const UserProfilePage = () => {
                                     Questions
                                 </div>
                             </div>
+
                             <div className="text-center">
                                 <div className="text-3xl font-bold text-purple-600">
                                     {answers.length}
@@ -137,7 +133,6 @@ const UserProfilePage = () => {
                     </div>
                 </div>
 
-                {/* Bio Section */}
                 {profileUser.bio && (
                     <div className="mt-6 pt-6 border-t border-gray-200">
                         <h3 className="font-semibold text-gray-900 mb-2">
@@ -148,53 +143,48 @@ const UserProfilePage = () => {
                 )}
             </div>
 
-            {/* --- Tabs --- */}
+            {/* Tabs */}
             <div className="bg-white rounded-lg border border-gray-200">
-                {/* Tab Header */}
-                <div className="border-b border-gray-200">
-                    <div className="flex gap-1 px-6">
+                <div className="border-b border-gray-200 flex gap-1 px-6">
+                    <button
+                        onClick={() => setActiveTab("questions")}
+                        className={`px-6 py-4 font-medium border-b-2 ${
+                            activeTab === "questions"
+                                ? "border-blue-600 text-blue-600"
+                                : "border-transparent text-gray-600"
+                        }`}
+                    >
+                        Questions ({questions.length})
+                    </button>
+
+                    {isOwnProfile && (
                         <button
-                            onClick={() => setActiveTab("questions")}
-                            className={`px-6 py-4 font-medium transition border-b-2 ${
-                                activeTab === "questions"
+                            onClick={() => setActiveTab("answers")}
+                            className={`px-6 py-4 font-medium border-b-2 ${
+                                activeTab === "answers"
                                     ? "border-blue-600 text-blue-600"
-                                    : "border-transparent text-gray-600 hover:text-gray-900"
+                                    : "border-transparent text-gray-600"
                             }`}
                         >
-                            Questions ({questions.length})
+                            Answers ({answers.length})
                         </button>
-
-                        {/* Only show Answers tab for own profile */}
-                        {isOwnProfile && (
-                            <button
-                                onClick={() => setActiveTab("answers")}
-                                className={`px-6 py-4 font-medium transition border-b-2 ${
-                                    activeTab === "answers"
-                                        ? "border-blue-600 text-blue-600"
-                                        : "border-transparent text-gray-600 hover:text-gray-900"
-                                }`}
-                            >
-                                Answers ({answers.length})
-                            </button>
-                        )}
-                    </div>
+                    )}
                 </div>
 
-                {/* --- Tab Content --- */}
                 <div className="p-6">
-                    {/* Questions Tab */}
+                    {/* Questions */}
                     {activeTab === "questions" && (
                         <div>
                             {questions.length === 0 ? (
-                                <div className="text-center py-12 text-gray-600">
-                                    <p>No questions asked yet</p>
-                                </div>
+                                <p className="text-center text-gray-600 py-12">
+                                    No questions asked yet.
+                                </p>
                             ) : (
                                 <div className="space-y-4">
-                                    {questions.map((question) => (
+                                    {questions.map((q) => (
                                         <QuestionItem
-                                            key={question._id}
-                                            question={question}
+                                            key={q.id || q._id}
+                                            question={q}
                                         />
                                     ))}
                                 </div>
@@ -202,41 +192,39 @@ const UserProfilePage = () => {
                         </div>
                     )}
 
-                    {/* Answers Tab (Own Profile Only) */}
+                    {/* Answers */}
                     {activeTab === "answers" && isOwnProfile && (
                         <div>
                             {answers.length === 0 ? (
-                                <div className="text-center py-12 text-gray-600">
-                                    <p>No answers posted yet</p>
-                                </div>
+                                <p className="text-center text-gray-600 py-12">
+                                    No answers posted yet.
+                                </p>
                             ) : (
                                 <div className="space-y-6">
-                                    {answers.map((answer) => (
+                                    {answers.map((a) => (
                                         <div
-                                            key={answer._id}
-                                            className="border-b border-gray-200 pb-6 last:border-0"
+                                            key={a._id}
+                                            className="border-b pb-6"
                                         >
-                                            <div className="flex items-start gap-4 mb-3">
-                                                <div>
-                                                    <span className="font-semibold">
-                                                        {answer.voteCount || 0}
-                                                    </span>{" "}
-                                                    votes
-                                                </div>
+                                            <div className="font-semibold mb-2">
+                                                {a.voteCount} votes
                                             </div>
+
                                             <Link
-                                                to={`/questions/${answer.question_id?._id}`}
-                                                className="text-blue-600 hover:text-blue-800 font-semibold mb-2 block"
+                                                to={`/questions/${a.questionId}`}
+                                                className="text-blue-600 hover:text-blue-800 font-semibold"
                                             >
-                                                {answer.question_id?.title ||
+                                                {a.question?.title ||
                                                     "View Question"}
                                             </Link>
-                                            <p className="text-gray-700 line-clamp-3">
-                                                {answer.body}
+
+                                            <p className="text-gray-700 mt-2 line-clamp-3">
+                                                {a.body}
                                             </p>
-                                            <div className="mt-2 text-sm text-gray-500">
+
+                                            <div className="text-sm text-gray-500 mt-1">
                                                 Answered{" "}
-                                                {formatDate(answer.createdAt)}
+                                                {formatDate(a.createdAt)}
                                             </div>
                                         </div>
                                     ))}

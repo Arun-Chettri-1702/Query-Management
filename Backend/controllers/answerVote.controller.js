@@ -59,10 +59,17 @@ export const toggleVote = asyncHandler(async (req, res) => {
 
     // find user's current vote state
     const afterVote = await findVote(answerId, userId);
+    const userVote = afterVote ? afterVote.vote_type : 0;
 
+    // return both naming styles
     return res.status(200).json({
         message,
-        votes: stats,
-        userVote: afterVote ? afterVote.vote_type : 0, // 1, -1 or 0
+        votes: {
+            upvotes: stats.upvotes,
+            downvotes: stats.downvotes,
+            score: stats.score,
+        },
+        userVote,
+        user_vote: userVote,
     });
 });

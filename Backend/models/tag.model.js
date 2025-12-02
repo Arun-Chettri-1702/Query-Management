@@ -1,55 +1,48 @@
+// models/tag.model.js
 import { query } from "../db/index.js";
 
-// --------------------------------------------------
-// Find a tag by normalized name
-// --------------------------------------------------
-export const getTagByName = async (name) => {
-    const lower = name.toLowerCase().trim();
+/* -------------------------------------------------------
+   Shared mapper — SAME as question.model.js
+------------------------------------------------------- */
+const mapQuestionRow = (r) => {
+    if (!r) return null;
 
-    const rows = await query(
-        `SELECT * FROM tags WHERE LOWER(name) = ? LIMIT 1`,
-        [lower]
-    );
+    const id = r.id;
+    const _id = r.id;
 
-    return rows[0] || null;
+    const askedBy = {
+        id: r.askedBy_id,
+        _id: r.askedBy_id,
+        name: r.askedBy_name,
+    };
+
+    return {
+        id,
+        _id,
+        title: r.title,
+        body: r.body,
+
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+
+        voteCount: r.vote_count ?? 0,
+
+        // Tag-level controllers must attach actual tags list
+        tags: [],
+
+        askedBy,
+
+        // Normalized answer fields
+        answers: [], // empty list for listing pages
+        answerCount: r.answerCount ?? 0,
+    };
 };
 
-// --------------------------------------------------
-// Create or return tag ID
-// --------------------------------------------------
-export const findOrCreateTagByName = async (name) => {
-    const lower = name.toLowerCase().trim();
-
-    // 1. Check if exists
-    const exists = await getTagByName(lower);
-    if (exists) return exists.id;
-
-    // 2. Create new tag
-    const result = await query(`INSERT INTO tags (name) VALUES (?)`, [lower]);
-
-    return result.insertId;
-};
-
-// --------------------------------------------------
-// Bulk find-or-create tags
-// --------------------------------------------------
-export const findOrCreateTags = async (tagNames = []) => {
-    const ids = [];
-
-    for (const name of tagNames) {
-        if (!name || !name.trim()) continue;
-        const id = await findOrCreateTagByName(name);
-        ids.push(id);
-    }
-
-    return ids;
-};
-
-// --------------------------------------------------
-// Fetch all tags with their question count
-// --------------------------------------------------
+/* -------------------------------------------------------
+   Get all tags with question counts
+------------------------------------------------------- */
 export const getAllTagsSQL = async () => {
-    return await query(`
+    const rows = await query(`
         SELECT 
             t.id,
             t.name,
@@ -57,37 +50,85 @@ export const getAllTagsSQL = async () => {
         FROM tags t
         LEFT JOIN question_tags qt ON qt.tag_id = t.id
         GROUP BY t.id
-        ORDER BY questionCount DESC
+        ORDER BY t.name ASC
     `);
+
+    return rows.map((t) => ({
+        id: t.id,
+        _id: t.id,
+        name: t.name,
+        questionCount: t.questionCount,
+    }));
 };
 
-// --------------------------------------------------
-// Fetch paginated questions for a given tag
-// --------------------------------------------------
-export const getQuestionsForTagSQL = async (tagId, limit, offset) => {
-    return await query(
+/* -------------------------------------------------------
+   Get questions for a tag (paginated)
+------------------------------------------------------- */
+export const getTagQuestionsSQL = async ({ tagName, skip, limit }) => {
+    // 1. Fetch tag details
+    const tagRows = await query(
+        `SELECT id, name FROM tags WHERE name = ? LIMIT 1`,
+        [tagName]
+    );
+
+    const tag = tagRows[0];
+    if (!tag) return { tag: null, total: 0, questions: [] };
+
+    // 2. Count total questions
+    const countRows = await query(
+        `
+        SELECT COUNT(*) AS total
+        FROM question_tags qt
+        JOIN questions q ON q.id = qt.question_id
+        WHERE qt.tag_id = ?
+        `,
+        [tag.id]
+    );
+
+    const total = countRows[0].total;
+
+    // 3. Get paginated questions
+    const rows = await query(
         `
         SELECT 
             q.id,
             q.title,
             q.body,
-            q.asked_by,
+            q.vote_count,
             q.created_at,
-            q.updated_at
-        FROM questions q
-        JOIN question_tags qt ON q.id = qt.question_id
+            q.updated_at,
+            u.id AS askedBy_id,
+            u.name AS askedBy_name,
+            (
+                SELECT COUNT(*) FROM answers a 
+                WHERE a.question_id = q.id
+            ) AS answerCount
+        FROM question_tags qt
+        JOIN questions q ON q.id = qt.question_id
+        JOIN users u ON u.id = q.asked_by
         WHERE qt.tag_id = ?
         ORDER BY q.created_at DESC
         LIMIT ? OFFSET ?
         `,
-        [tagId, limit, offset]
+        [tag.id, limit, skip]
     );
+
+    const questions = rows.map(mapQuestionRow);
+
+    return { tag, total, questions };
 };
 
-export const countQuestionsForTagSQL = async (tagId) => {
-    const rows = await query(
-        `SELECT COUNT(*) AS count FROM question_tags WHERE tag_id = ?`,
-        [tagId]
+/* -------------------------------------------------------
+   Get tags for a question (used by controller)
+------------------------------------------------------- */
+export const getTagsForQuestion = async (questionId) => {
+    return await query(
+        `
+        SELECT t.id, t.name 
+        FROM tags t
+        JOIN question_tags qt ON qt.tag_id = t.id
+        WHERE qt.question_id = ?
+        `,
+        [questionId]
     );
-    return rows[0].count;
 };
