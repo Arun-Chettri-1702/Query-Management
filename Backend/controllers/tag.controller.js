@@ -7,17 +7,13 @@ import {
 } from "../models/tag.model.js";
 
 
-/* -------------------------------------------------------
-   GET ALL TAGS
-------------------------------------------------------- */
+
 export const getAllTags = asyncHandler(async (req, res) => {
     const tags = await getAllTagsSQL();
     res.status(200).json({ tags });
 });
 
-/* -------------------------------------------------------
-   GET QUESTIONS FOR TAG (FULL NORMALIZED)
-------------------------------------------------------- */
+
 export const getTagQuestions = asyncHandler(async (req, res) => {
     const { tagName } = req.params;
 
@@ -36,7 +32,7 @@ export const getTagQuestions = asyncHandler(async (req, res) => {
         throw new Error("Tag not found");
     }
 
-    // Attach full tag list to each question
+
     for (const q of questions) {
         const tags = await getTagsForQuestion(q.id);
         q.tags = tags.map((t) => ({

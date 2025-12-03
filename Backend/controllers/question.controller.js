@@ -14,9 +14,7 @@ import {
 
 import { query } from "../db/index.js";
 
-/* -------------------------------------------------------
-   CREATE QUESTION
-------------------------------------------------------- */
+
 export const createQuestionController = asyncHandler(async (req, res) => {
     const { title, body, tags } = req.body;
 
@@ -43,9 +41,7 @@ export const createQuestionController = asyncHandler(async (req, res) => {
     });
 });
 
-/* -------------------------------------------------------
-   GET ALL QUESTIONS
-------------------------------------------------------- */
+
 export const getAllQuestions = asyncHandler(async (req, res) => {
     const { sort, unanswered, search } = req.query;
 
@@ -69,9 +65,7 @@ export const getAllQuestions = asyncHandler(async (req, res) => {
     });
 });
 
-/* -------------------------------------------------------
-   GET USER QUESTIONS (FULLY FIXED)
-------------------------------------------------------- */
+
 export const getUserQuestions = asyncHandler(async (req, res) => {
     const { userId } = req.params;
 
@@ -113,9 +107,7 @@ export const getUserQuestions = asyncHandler(async (req, res) => {
     });
 });
 
-/* -------------------------------------------------------
-   GET QUESTION BY ID
-------------------------------------------------------- */
+
 export const getQuestionById = asyncHandler(async (req, res) => {
     const { questionId } = req.params;
 
@@ -129,9 +121,7 @@ export const getQuestionById = asyncHandler(async (req, res) => {
     res.status(200).json(question);
 });
 
-/* -------------------------------------------------------
-   UPDATE QUESTION — FINAL FIX
-------------------------------------------------------- */
+
 export const updateQuestion = asyncHandler(async (req, res) => {
     const { questionId } = req.params;
     const { title, body, tags } = req.body;
@@ -171,9 +161,7 @@ export const updateQuestion = asyncHandler(async (req, res) => {
     });
 });
 
-/* -------------------------------------------------------
-   DELETE QUESTION
-------------------------------------------------------- */
+
 export const deleteQuestion = asyncHandler(async (req, res) => {
     const { questionId } = req.params;
 

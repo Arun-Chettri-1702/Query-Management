@@ -1,9 +1,7 @@
 // models/question.model.js
 import { query } from "../db/index.js";
 
-/* -------------------------------------------------------
-   TAG HELPERS
-------------------------------------------------------- */
+
 
 // Find tag by name
 export const findTagByName = async (name) => {
@@ -44,9 +42,7 @@ export const findOrCreateTags = async (tagNames = []) => {
     return ids;
 };
 
-/* -------------------------------------------------------
-   QUESTION CRUD
-------------------------------------------------------- */
+
 
 // Create a question
 export const createQuestion = async ({ title, body, askedBy }) => {
@@ -148,11 +144,7 @@ export const getQuestionByIdFull = async (id) => {
     };
 };
 
-/**
----------------------------------------------------------
- GET ALL QUESTIONS — SEARCH + UNANSWERED + SORT + PAGINATION
----------------------------------------------------------
-*/
+
 export const getAllQuestionsSQL = async ({
     search,
     unanswered,
@@ -267,9 +259,7 @@ export const getAllQuestionsSQL = async ({
     return { questions: rows, total };
 };
 
-/* -------------------------------------------------------
-   GET QUESTIONS FOR A USER
-------------------------------------------------------- */
+
 export const getQuestionsByUserId = async (userId) => {
     const rows = await query(
         `
@@ -299,9 +289,6 @@ export const getQuestionsByUserId = async (userId) => {
     return rows;
 };
 
-/* -------------------------------------------------------
-   UPDATE QUESTION
-------------------------------------------------------- */
 export const updateQuestionSQL = async (questionId, fields) => {
     const columns = [];
     const values = [];

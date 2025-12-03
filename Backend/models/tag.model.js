@@ -1,9 +1,6 @@
 // models/tag.model.js
 import { query } from "../db/index.js";
 
-/* -------------------------------------------------------
-   Shared mapper — SAME as question.model.js
-------------------------------------------------------- */
 const mapQuestionRow = (r) => {
     if (!r) return null;
 
@@ -38,9 +35,6 @@ const mapQuestionRow = (r) => {
     };
 };
 
-/* -------------------------------------------------------
-   Get all tags with question counts
-------------------------------------------------------- */
 export const getAllTagsSQL = async () => {
     const rows = await query(`
         SELECT 
@@ -61,9 +55,7 @@ export const getAllTagsSQL = async () => {
     }));
 };
 
-/* -------------------------------------------------------
-   Get questions for a tag (paginated)
-------------------------------------------------------- */
+
 export const getTagQuestionsSQL = async ({ tagName, skip, limit }) => {
     // 1. Fetch tag details
     const tagRows = await query(
@@ -118,9 +110,7 @@ export const getTagQuestionsSQL = async ({ tagName, skip, limit }) => {
     return { tag, total, questions };
 };
 
-/* -------------------------------------------------------
-   Get tags for a question (used by controller)
-------------------------------------------------------- */
+
 export const getTagsForQuestion = async (questionId) => {
     return await query(
         `

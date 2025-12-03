@@ -1,9 +1,7 @@
 // models/comment.model.js
 import { query } from "../db/index.js";
 
-/* -------------------------------------------------------
-   Helper: normalize comment rows (Option C-1)
-------------------------------------------------------- */
+
 const mapRowToComment = (r, parentType) => {
     if (!r) return null;
 
@@ -35,9 +33,6 @@ const mapRowToComment = (r, parentType) => {
     };
 };
 
-/* -------------------------------------------------------
-   CREATE QUESTION COMMENT
-------------------------------------------------------- */
 export const createQuestionComment = async ({ body, authorId, questionId }) => {
     const result = await query(
         `INSERT INTO question_comments (body, author_id, question_id)
@@ -47,9 +42,7 @@ export const createQuestionComment = async ({ body, authorId, questionId }) => {
     return result.insertId;
 };
 
-/* -------------------------------------------------------
-   CREATE ANSWER COMMENT
-------------------------------------------------------- */
+
 export const createAnswerComment = async ({ body, authorId, answerId }) => {
     const result = await query(
         `INSERT INTO answer_comments (body, author_id, answer_id)
@@ -59,9 +52,7 @@ export const createAnswerComment = async ({ body, authorId, answerId }) => {
     return result.insertId;
 };
 
-/* -------------------------------------------------------
-   GET COMMENTS FOR QUESTION — normalized
-------------------------------------------------------- */
+
 export const getQuestionComments = async (questionId) => {
     const rows = await query(
         `
@@ -77,9 +68,7 @@ export const getQuestionComments = async (questionId) => {
     return rows.map((r) => mapRowToComment(r, "question"));
 };
 
-/* -------------------------------------------------------
-   GET COMMENTS FOR ANSWER — normalized
-------------------------------------------------------- */
+
 export const getAnswerComments = async (answerId) => {
     const rows = await query(
         `
@@ -95,9 +84,7 @@ export const getAnswerComments = async (answerId) => {
     return rows.map((r) => mapRowToComment(r, "answer"));
 };
 
-/* -------------------------------------------------------
-   FIND COMMENT BY ID (search both tables)
-------------------------------------------------------- */
+
 export const findCommentById = async (commentId) => {
     let rows = await query(
         `SELECT qc.*, u.name AS author_name, 'question' AS type
@@ -122,9 +109,7 @@ export const findCommentById = async (commentId) => {
     return rows.length ? mapRowToComment(rows[0], "answer") : null;
 };
 
-/* -------------------------------------------------------
-   UPDATE COMMENT
-------------------------------------------------------- */
+
 export const updateCommentSQL = async (type, commentId, body) => {
     const table = type === "question" ? "question_comments" : "answer_comments";
     await query(
@@ -133,9 +118,7 @@ export const updateCommentSQL = async (type, commentId, body) => {
     );
 };
 
-/* -------------------------------------------------------
-   DELETE COMMENT
-------------------------------------------------------- */
+
 export const deleteCommentSQL = async (type, commentId) => {
     const table = type === "question" ? "question_comments" : "answer_comments";
     await query(`DELETE FROM ${table} WHERE id = ?`, [commentId]);

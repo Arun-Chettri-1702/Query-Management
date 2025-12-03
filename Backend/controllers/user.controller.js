@@ -13,9 +13,6 @@ import {
 import dotenv from "dotenv";
 dotenv.config({ path: "../.env" });
 
-/* -------------------------------------------------------
-   USER NORMALIZER (same structure everywhere)
-------------------------------------------------------- */
 const mapUser = (user) => ({
     id: user.id,
     _id: user.id,
@@ -26,9 +23,6 @@ const mapUser = (user) => ({
     updatedAt: user.updated_at,
 });
 
-/* -------------------------------------------------------
-   Generate Access + Refresh Token pair
-------------------------------------------------------- */
 const generateTokensForUser = async (userId) => {
     const user = await findUserById(userId);
 
@@ -44,9 +38,6 @@ const generateTokensForUser = async (userId) => {
     };
 };
 
-/* -------------------------------------------------------
-   REGISTER
-------------------------------------------------------- */
 export const registerUser = asyncHandler(async (req, res) => {
     const { name, email, password, bio } = req.body;
 
@@ -86,9 +77,6 @@ export const registerUser = asyncHandler(async (req, res) => {
         });
 });
 
-/* -------------------------------------------------------
-   LOGIN
-------------------------------------------------------- */
 export const loginUser = asyncHandler(async (req, res) => {
     const { email, password } = req.body;
 
@@ -125,9 +113,6 @@ export const loginUser = asyncHandler(async (req, res) => {
         });
 });
 
-/* -------------------------------------------------------
-   LOGOUT
-------------------------------------------------------- */
 export const logoutUser = asyncHandler(async (req, res) => {
     const userId = req.user.id;
 
@@ -147,9 +132,6 @@ export const logoutUser = asyncHandler(async (req, res) => {
         .json({ message: "Logged out successfully" });
 });
 
-/* -------------------------------------------------------
-   GET USER BY ID (normalized)
-------------------------------------------------------- */
 export const getUserById = asyncHandler(async (req, res) => {
     const { userId } = req.params;
 
@@ -162,9 +144,6 @@ export const getUserById = asyncHandler(async (req, res) => {
     return res.status(200).json(mapUser(user));
 });
 
-/* -------------------------------------------------------
-   REFRESH ACCESS TOKEN
-------------------------------------------------------- */
 export const refreshAccessToken = asyncHandler(async (req, res) => {
     const user = req.user; // already normalized by middleware
 

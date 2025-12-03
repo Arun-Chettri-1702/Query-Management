@@ -10,9 +10,7 @@ import {
     deleteCommentSQL,
 } from "../models/comment.model.js";
 
-/* -------------------------------------------------------
-   CREATE COMMENT
-------------------------------------------------------- */
+
 export const createComment = asyncHandler(async (req, res) => {
     const { body } = req.body;
     const { questionId, answerId } = req.params;
@@ -50,9 +48,7 @@ export const createComment = asyncHandler(async (req, res) => {
     });
 });
 
-/* -------------------------------------------------------
-   GET COMMENTS (Question or Answer)
-------------------------------------------------------- */
+
 export const getCommentsForParent = asyncHandler(async (req, res) => {
     const { questionId, answerId } = req.params;
 
@@ -73,9 +69,6 @@ export const getCommentsForParent = asyncHandler(async (req, res) => {
     });
 });
 
-/* -------------------------------------------------------
-   UPDATE COMMENT
-------------------------------------------------------- */
 export const updateComment = asyncHandler(async (req, res) => {
     const { commentId } = req.params;
     const { body } = req.body;
@@ -107,9 +100,7 @@ export const updateComment = asyncHandler(async (req, res) => {
     });
 });
 
-/* -------------------------------------------------------
-   DELETE COMMENT
-------------------------------------------------------- */
+
 export const deleteComment = asyncHandler(async (req, res) => {
     const { commentId } = req.params;
 

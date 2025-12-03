@@ -11,10 +11,7 @@ import {
     updateAnswerVoteCount,
 } from "../models/answer.model.js";
 
-/**
- * toggleVote
- * Body: { voteType: 1 | -1 }
- */
+
 export const toggleVote = asyncHandler(async (req, res) => {
     const { answerId } = req.params;
     const { voteType } = req.body;

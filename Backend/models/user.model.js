@@ -6,9 +6,6 @@ import dotenv from "dotenv";
 
 dotenv.config({ path: "./.env" });
 
-/* -------------------------------------------------------
-   Helper — normalize user output
-------------------------------------------------------- */
 export const mapUser = (u) => {
     if (!u) return null;
 
@@ -31,17 +28,13 @@ export const mapUser = (u) => {
     };
 };
 
-/* -------------------------------------------------------
-   HASH PASSWORD
-------------------------------------------------------- */
+
 export const hashPasswordIfNeeded = async (password) => {
     const salt = await bcrypt.genSalt(10);
     return await bcrypt.hash(password, salt);
 };
 
-/* -------------------------------------------------------
-   CREATE USER
-------------------------------------------------------- */
+
 export const createUser = async ({ name, email, password, bio }) => {
     const hashed = await hashPasswordIfNeeded(password);
 
@@ -54,9 +47,7 @@ export const createUser = async ({ name, email, password, bio }) => {
     return result.insertId;
 };
 
-/* -------------------------------------------------------
-   FIND USER BY EMAIL (raw DB row)
-------------------------------------------------------- */
+
 export const findUserByEmail = async (email) => {
     const rows = await query("SELECT * FROM users WHERE email = ? LIMIT 1", [
         email,
@@ -64,9 +55,7 @@ export const findUserByEmail = async (email) => {
     return rows[0] || null;
 };
 
-/* -------------------------------------------------------
-   FIND USER BY ID (normalized)
-------------------------------------------------------- */
+
 export const findUserById = async (id) => {
     const rows = await query("SELECT * FROM users WHERE id = ? LIMIT 1", [id]);
     if (!rows[0]) return null;
@@ -75,9 +64,6 @@ export const findUserById = async (id) => {
     return mapUser(user);
 };
 
-/* -------------------------------------------------------
-   SAVE REFRESH TOKEN
-------------------------------------------------------- */
 export const saveRefreshToken = async (userId, token) => {
     await query("UPDATE users SET refresh_token = ? WHERE id = ?", [
         token,
@@ -85,16 +71,12 @@ export const saveRefreshToken = async (userId, token) => {
     ]);
 };
 
-/* -------------------------------------------------------
-   PASSWORD CHECK
-------------------------------------------------------- */
+
 export const isValidPassword = async (password, hashedPassword) => {
     return await bcrypt.compare(password, hashedPassword);
 };
 
-/* -------------------------------------------------------
-   ACCESS TOKEN
-------------------------------------------------------- */
+
 export const generateAccessToken = (user) => {
     return jwt.sign(
         {
@@ -107,9 +89,7 @@ export const generateAccessToken = (user) => {
     );
 };
 
-/* -------------------------------------------------------
-   REFRESH TOKEN
-------------------------------------------------------- */
+
 export const generateRefreshToken = (user) => {
     return jwt.sign(
         {
